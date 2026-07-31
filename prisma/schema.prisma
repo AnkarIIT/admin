@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  description      String?
+  category         String
+  base_price       Decimal  @db.Decimal(10, 2)
+  discounted_price Decimal? @db.Decimal(10, 2)
+  is_on_sale       Boolean  @default(false)
+  is_new           Boolean  @default(false)
+  is_bestseller    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Order {
+  id                       String                     @id @default(cuid())
+  orderId                  String                     @unique
+  customerId               String
+  customerName             String
+  customerEmail            String
+  customerPhone            String?
+  items                    String
+  subtotal                 Decimal                    @db.Decimal(10, 2)
+  tax                      Decimal                    @db.Decimal(10, 2)
+  shipping                 Decimal                    @db.Decimal(10, 2)
+  discount                 Decimal                    @db.Decimal(10, 2)
+  total                    Decimal                    @db.Decimal(10, 2)
+  paymentMethod            String?
+  paymentReference         String?
+  couponCode               String?
+  shippingAddress          String
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  expiresAt                DateTime?
+  status                   OrderStatus                @default(pending)
+  Delivery                 Delivery?
+  OrderTimelineEvent       OrderTimelineEvent[]
+  Payment                  Payment?
+  PaymentVerificationQueue PaymentVerificationQueue[]
+
+  @@index([customerEmail, createdAt])
+  @@index([status])
+}
+
+model AuditLog {
+  id        String   @id
+  entity    String
+  entityId  String
+  action    String
+  changes   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityId])
+}
+
+model CustomLabRequest {
+  id        String   @id
+  requestId String   @unique
+  name      String
+  email     String
+  details   String
+  fileName  String?
+  filePath  String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+}
+
+model Delivery {
+  id                String         @id
+  orderId           String         @unique
+  paymentId         String         @unique
+  customerName      String
+  customerPhone     String?
+  street            String
+  city              String
+  state             String
+  pincode           String
+  trackingNumber    String?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  estimatedDelivery DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  expiresAt         DateTime?
+  status            DeliveryStatus @default(pending)
+  Order             Order          @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  Payment           Payment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+model NewsletterSubscriber {
+  id        String   @id
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model OrderTimelineEvent {
+  id        String   @id
+  orderId   String
+  stage     String
+  message   String?
+  emailSent Boolean  @default(false)
+  createdAt DateTime @default(now())
+  Order     Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+
+  @@unique([orderId, stage])
+  @@index([orderId, createdAt])
+}
+
+model Payment {
+  id                String        @id
+  orderId           String        @unique
+  customerId        String
+  customerName      String
+  customerEmail     String
+  customerPhone     String?
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR")
+  paymentMethod     String
+  paymentReference  String?
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  itemCount         Int
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime
+  completedAt       DateTime?
+  expiresAt         DateTime?
+  paymentStatus     PaymentStatus @default(pending)
+  Delivery          Delivery?
+  Order             Order         @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+  @@index([paymentStatus, createdAt])
+}
+
+model PaymentVerificationQueue {
+  id          String    @id
+  orderId     String
+  method      String
+  reference   String?
+  amount      Decimal   @db.Decimal(10, 2)
+  status      String    @default("pending")
+  notes       String?
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+  Order       Order     @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status, createdAt])
+}
+
+model ProductOverride {
+  productId     String   @id
+  price         Decimal? @db.Decimal(10, 2)
+  originalPrice Decimal? @db.Decimal(10, 2)
+  stock         Int?
+  inStock       Boolean?
+  hidden        Boolean  @default(false)
+  badge         String?
+  updatedAt     DateTime
+}
+
+model SiteConfig {
+  id        String   @id @default("global")
+  data      String
+  updatedAt DateTime
+}
+
+model User {
+  id              String        @id
+  name            String?
+  email           String        @unique
+  password        String
+  role            String        @default("customer")
+  isActive        Boolean       @default(true)
+  totpSecret      String?       @unique
+  totpEnabled     Boolean       @default(false)
+  passwordChanged Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  UserSession     UserSession[]
+
+  @@index([email])
+}
+
+model UserSession {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model admins {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String       @unique @db.VarChar(255)
+  password_hash String
+  role          String       @default("editor") @db.VarChar(50)
+  totp_secret         String?   @db.Text
+  totp_enabled        Boolean   @default(false)
+  recovery_codes_hash String?   @db.Text
+  created_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  audit_logs    audit_logs[]
+}
+
+model audit_logs {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id   String?   @db.Uuid
+  action     String    @db.VarChar(255)
+  details    Json?     @default("{}")
+  ip_address String?   @default("unknown") @db.VarChar(45)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  admins     admins?   @relation(fields: [admin_id], references: [id], onUpdate: NoAction)
+}
+
+enum DeliveryStatus {
+  pending
+  shipped
+  in_transit
+  delivered
+  cancelled
+}
+
+enum OrderStatus {
+  pending
+  pending_payment
+  paid
+  confirmed
+  shipped
+  delivered
+  cancelled
+}
+
+enum PaymentMethod {
+  upi
+  card
+  bank_transfer
+  cod
+  razorpay
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
+  cancelled
+}
