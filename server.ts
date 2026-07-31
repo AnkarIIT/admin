@@ -88,8 +88,7 @@ async function primaryAdmin() {
 
 async function resolveAdmin(email?: unknown) {
   if (email && typeof email === "string" && email.trim()) {
-    const admin = await prisma.admins.findUnique({ where: { email: email.trim().toLowerCase() } });
-    if (admin) return admin;
+    return prisma.admins.findUnique({ where: { email: email.trim().toLowerCase() } });
   }
   return primaryAdmin();
 }
