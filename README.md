@@ -19,7 +19,3 @@ Admin panel for the "3D by SD" store (INR). Manage products, orders, customers, 
 - `npm start` — run production server
 - `npm test` — run API tests (vitest)
 - `npm run lint` — TypeScript typecheck
-
-## Login
-
-Default admin: `admin@example.com` / `admin123`. Enable Google Authenticator (TOTP) 2FA under Settings → Security & 2FA.
