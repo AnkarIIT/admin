@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { generateSecret, generateURI, verify as verifyTotpCode } from "otplib";
 import qrcode from "qrcode";
 import bcrypt from "bcryptjs";
+import prisma from "./prisma";
 
 export interface AuthUser {
   id: string;
@@ -21,10 +22,12 @@ const SESSION_COOKIE = "admin_session";
 const SESSION_TTL_MS = 30 * 60 * 1000;
 const PENDING_TTL_MS = 5 * 60 * 1000;
 
-const sessions = new Map<string, Session>();
-const pendingLogins = new Map<string, { userId: string; expiresAt: number }>();
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const verifyAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -89,26 +92,35 @@ function parseCookies(req: Request): Record<string, string> {
   return out;
 }
 
-export function createSession(userId: string): string {
+export async function createSession(userId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
-  sessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+  await prisma.adminSession.create({
+    data: {
+      adminId: userId,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    },
+  });
+  await prisma.adminSession.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   return token;
 }
 
-export function destroySession(token: string) {
-  sessions.delete(token);
+export async function destroySession(token: string | undefined) {
+  if (!token) return;
+  await prisma.adminSession.deleteMany({ where: { tokenHash: hashToken(token) } });
 }
 
-export function getSessionUser(token: string | undefined): Session | null {
+export async function getSessionUser(token: string | undefined): Promise<Session | null> {
   if (!token) return null;
-  const session = sessions.get(token);
-  if (!session) return null;
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(token);
+  const row = await prisma.adminSession.findUnique({ where: { tokenHash: hashToken(token) } });
+  if (!row) return null;
+  if (row.expiresAt.getTime() < Date.now()) {
+    await prisma.adminSession.deleteMany({ where: { id: row.id } });
     return null;
   }
-  session.expiresAt = Date.now() + SESSION_TTL_MS;
-  return session;
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await prisma.adminSession.update({ where: { id: row.id }, data: { expiresAt } });
+  return { userId: row.adminId, expiresAt: expiresAt.getTime() };
 }
 
 function isRateLimited(ip: string): boolean {
@@ -126,31 +138,38 @@ function clearRateLimit(ip: string) {
   loginAttempts.delete(ip);
 }
 
-export function pendingLoginToken(userId: string): string {
+export async function pendingLoginToken(userId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
-  pendingLogins.set(token, { userId, expiresAt: Date.now() + PENDING_TTL_MS });
+  await prisma.pendingLogin.create({
+    data: {
+      adminId: userId,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + PENDING_TTL_MS),
+    },
+  });
+  await prisma.pendingLogin.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   return token;
 }
 
-export function consumePendingLogin(token: string): string | null {
-  const entry = pendingLogins.get(token);
-  if (!entry) return null;
-  pendingLogins.delete(token);
-  if (entry.expiresAt < Date.now()) return null;
-  return entry.userId;
+export async function consumePendingLogin(token: string): Promise<string | null> {
+  const row = await prisma.pendingLogin.findUnique({ where: { tokenHash: hashToken(token) } });
+  if (!row) return null;
+  await prisma.pendingLogin.deleteMany({ where: { id: row.id } });
+  if (row.expiresAt.getTime() < Date.now()) return null;
+  return row.adminId;
 }
 
-export function peekPendingLogin(token: string): string | null {
-  const entry = pendingLogins.get(token);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) {
-    pendingLogins.delete(token);
+export async function peekPendingLogin(token: string): Promise<string | null> {
+  const row = await prisma.pendingLogin.findUnique({ where: { tokenHash: hashToken(token) } });
+  if (!row) return null;
+  if (row.expiresAt.getTime() < Date.now()) {
+    await prisma.pendingLogin.deleteMany({ where: { id: row.id } });
     return null;
   }
-  return entry.userId;
+  return row.adminId;
 }
 
-export function currentSession(req: Request): Session | null {
+export async function currentSession(req: Request): Promise<Session | null> {
   return getSessionUser(parseCookies(req)[SESSION_COOKIE]);
 }
 
@@ -158,16 +177,20 @@ export function sessionToken(req: Request): string | undefined {
   return parseCookies(req)[SESSION_COOKIE];
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = sessionToken(req);
-  const session = currentSession(req);
-  if (!session) {
-    return res.status(401).json({ error: "Not authenticated" });
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const token = sessionToken(req);
+    const session = await currentSession(req);
+    if (!session) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    if (token) setSessionCookie(res, token);
+    (req as any).userId = session.userId;
+    (req as any).clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+    next();
+  } catch (e) {
+    return res.status(500).json({ error: "Failed to load session" });
   }
-  if (token) setSessionCookie(res, token);
-  (req as any).userId = session.userId;
-  (req as any).clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
-  next();
 }
 
 export function checkRateLimit(req: Request, res: Response, next: NextFunction) {

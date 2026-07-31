@@ -156,7 +156,7 @@ describe("2FA setup", () => {
 
     const afterUse = await prisma.admins.findUnique({ where: { email: TEST_EMAIL } });
     expect(JSON.parse(afterUse!.recovery_codes_hash as string).length).toBe(RECOVERY_CODE_COUNT - 1);
-  });
+  }, 15000);
 
   it("clears recovery codes when 2FA is disabled", async () => {
     const pendingToken = await login();

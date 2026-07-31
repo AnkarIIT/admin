@@ -86,7 +86,7 @@ app.post("/api/auth/login", checkRateLimit, async (req, res) => {
     clearLoginRateLimit(req);
 
     if (admin.totp_enabled && admin.totp_secret) {
-      const pendingToken = pendingLoginToken(admin.id);
+      const pendingToken = await pendingLoginToken(admin.id);
       return res.json({ twoFactorRequired: true, pendingToken });
     }
 
@@ -94,7 +94,7 @@ app.post("/api/auth/login", checkRateLimit, async (req, res) => {
       data: { admin_id: admin.id, action: "login_success", details: { module: "Auth" }, ip_address: clientIp(req) },
     });
 
-    const token = createSession(admin.id);
+    const token = await createSession(admin.id);
     setSessionCookie(res, token);
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
@@ -113,7 +113,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
       return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
     }
 
-    const userId = peekPendingLogin(pendingToken);
+    const userId = await peekPendingLogin(pendingToken);
     if (!userId) return res.status(400).json({ error: "2FA session expired or invalid. Log in again." });
 
     const admin = await prisma.admins.findUnique({ where: { id: userId } });
@@ -140,7 +140,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
       return res.status(401).json({ error: "Invalid authentication code" });
     }
 
-    consumePendingLogin(pendingToken);
+    await consumePendingLogin(pendingToken);
     clearVerify2faRateLimit(ip, pendingToken);
     (req as any).clientIp = ip;
     clearLoginRateLimit(req);
@@ -153,7 +153,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
       },
     });
 
-    const token = createSession(admin.id);
+    const token = await createSession(admin.id);
     setSessionCookie(res, token);
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
@@ -164,7 +164,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 app.get("/api/auth/me", async (req, res) => {
   try {
     const token = sessionToken(req);
-    const session = currentSession(req);
+    const session = await currentSession(req);
     if (!session) return res.status(401).json({ error: "Not authenticated" });
     const admin = await prisma.admins.findUnique({ where: { id: session.userId } });
     if (!admin) return res.status(401).json({ error: "Not authenticated" });
@@ -176,8 +176,7 @@ app.get("/api/auth/me", async (req, res) => {
 });
 
 app.post("/api/auth/logout", async (req, res) => {
-  const token = sessionToken(req);
-  if (token) destroySession(token);
+  await destroySession(sessionToken(req));
   clearSessionCookie(res);
   res.json({ success: true });
 });
@@ -668,7 +667,7 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {

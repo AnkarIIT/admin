@@ -214,16 +214,44 @@ model UserSession {
 }
 
 model admins {
-  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String       @unique @db.VarChar(255)
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String            @unique @db.VarChar(255)
   password_hash String
-  role          String       @default("editor") @db.VarChar(50)
+  role          String            @default("editor") @db.VarChar(50)
   totp_secret         String?   @db.Text
   totp_enabled        Boolean   @default(false)
   recovery_codes_hash String?   @db.Text
-  created_at    DateTime?    @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime?    @default(now()) @db.Timestamptz(6)
+  created_at    DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?         @default(now()) @db.Timestamptz(6)
   audit_logs    audit_logs[]
+  sessions      AdminSession[]
+  pendingLogins PendingLogin[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  adminId   String   @db.Uuid
+  tokenHash String   @unique @db.VarChar(64)
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  admins    admins   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([adminId])
+}
+
+model PendingLogin {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique @db.VarChar(64)
+  adminId   String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  admins    admins   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([adminId])
 }
 
 model audit_logs {
