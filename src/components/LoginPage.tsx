@@ -21,22 +21,24 @@ function formatRecoveryInput(raw: string): string {
 }
 
 const LoginPage: React.FC = () => {
-  const { loginWithTotp, completeSetup, enterAdmin, addToast } = useAdmin();
+  const { loginWithTotp, loginWithPassword, completeSetup, enterAdmin, addToast } = useAdmin();
 
-  // Email input state
-  const [email, setEmail] = useState('');
-  const [emailEntered, setEmailEntered] = useState(false);
-
-  const [checking, setChecking] = useState(false);
+  // Screen/flow state
+  const [checking, setChecking] = useState(true);
   const [enabled, setEnabled] = useState(false);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
 
-  // Login mode
+  // Email & Password fields
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Login verification code (TOTP or backup code)
   const [code, setCode] = useState('');
   const [useRecovery, setUseRecovery] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Setup mode
+  // Setup state (in case TOTP is disabled for the default admin)
   const [setup, setSetup] = useState<{ secret: string; uri: string; qr: string } | null>(null);
   const [setupCode, setSetupCode] = useState('');
   const [setupUser, setSetupUser] = useState<any>(null);
@@ -47,40 +49,50 @@ const LoginPage: React.FC = () => {
   const setupRef = useRef<HTMLInputElement>(null);
   const autoSubmitted = useRef(false);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetEmail = email.trim().toLowerCase();
-    if (!targetEmail) return;
-    setError('');
-    setChecking(true);
-    try {
-      const res = await api.totpStatus(targetEmail);
-      if (res.enabled) {
-        setEnabled(true);
-        setEmailEntered(true);
-      } else {
-        const setupRes = await api.totpSetup(targetEmail);
-        setSetup(setupRes);
+  // Check TOTP status on page load (defaults to primary admin)
+  useEffect(() => {
+    const checkPrimaryTotp = async () => {
+      setChecking(true);
+      setError('');
+      try {
+        const res = await api.totpStatus('');
+        if (res.enabled) {
+          setEnabled(true);
+        } else {
+          const setupRes = await api.totpSetup('');
+          setSetup(setupRes);
+          setEnabled(false);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Error checking TOTP status');
         setEnabled(false);
-        setEmailEntered(true);
+      } finally {
+        setChecking(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'No admin account found.');
-      setEmailEntered(false);
-      setEnabled(false);
-      setSetup(null);
-    } finally {
-      setChecking(false);
-    }
+    };
+    checkPrimaryTotp();
+  }, []);
+
+  // Clear states when toggling back to TOTP login from password view
+  const handleBackToTotp = () => {
+    setShowPasswordInput(false);
+    setEmail('');
+    setPassword('');
+    setError('');
   };
 
-  const handleBack = () => {
-    setEmailEntered(false);
-    setEnabled(false);
-    setSetup(null);
-    setSetupCode('');
-    setCode('');
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim() || busy) return;
     setError('');
+    setBusy(true);
+    try {
+      await loginWithPassword(email.trim(), password);
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -91,11 +103,11 @@ const LoginPage: React.FC = () => {
   }, [setup, recoveryCodes]);
 
   useEffect(() => {
-    if (enabled) {
+    if (enabled && !showPasswordInput) {
       const t = setTimeout(() => codeRef.current?.focus(), 60);
       return () => clearTimeout(t);
     }
-  }, [enabled]);
+  }, [enabled, showPasswordInput]);
 
   const submitLogin = useCallback(
     async (value: string) => {
@@ -103,7 +115,8 @@ const LoginPage: React.FC = () => {
       setError('');
       setBusy(true);
       try {
-        await loginWithTotp(value, email);
+        // Log in using the verified code (primary admin)
+        await loginWithTotp(value, email.trim() || undefined);
       } catch (err: any) {
         setError(err.message || 'Invalid code');
         setCode('');
@@ -118,12 +131,12 @@ const LoginPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (useRecovery || checking || !emailEntered) return;
+    if (useRecovery || checking || showPasswordInput || !enabled) return;
     if (code.length === 6 && !autoSubmitted.current && !busy) {
       autoSubmitted.current = true;
       submitLogin(code);
     }
-  }, [code, useRecovery, checking, emailEntered, busy, submitLogin]);
+  }, [code, useRecovery, checking, showPasswordInput, enabled, busy, submitLogin]);
 
   const handleCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -137,7 +150,7 @@ const LoginPage: React.FC = () => {
 
   const handleLoginForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (useRecovery) submitLogin(code);
+    submitLogin(code);
   };
 
   const handleSetupConfirm = async (e: React.FormEvent) => {
@@ -147,7 +160,7 @@ const LoginPage: React.FC = () => {
     setError('');
     setBusy(true);
     try {
-      const res = await completeSetup(value, email);
+      const res = await completeSetup(value);
       setSetupUser(res.user);
       setRecoveryCodes(res.recoveryCodes);
       setCopied(false);
@@ -234,15 +247,15 @@ const LoginPage: React.FC = () => {
                 </button>
               </div>
             </div>
-          ) : !emailEntered ? (
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
+          ) : showPasswordInput ? (
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <div className="text-center">
                 <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
                   <Mail className="h-6 w-6" />
                 </div>
-                <h2 className="text-base font-bold text-white">Sign In with Authenticator</h2>
+                <h2 className="text-base font-bold text-white">Login with Email</h2>
                 <p className="mt-1 text-xs text-slate-400">
-                  Enter your admin email address to proceed.
+                  Enter your admin credentials to proceed.
                 </p>
               </div>
 
@@ -255,8 +268,23 @@ const LoginPage: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
+                  placeholder="user@example.com"
                   autoComplete="email"
+                  className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
                   className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
                 />
               </div>
@@ -269,12 +297,23 @@ const LoginPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={busy || !email.trim()}
+                disabled={busy || !email.trim() || !password.trim()}
                 className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90 disabled:opacity-60"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                Continue
+                Login
               </button>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleBackToTotp}
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back to TOTP login
+                </button>
+              </div>
             </form>
           ) : !enabled ? (
             <div className="space-y-4">
@@ -349,10 +388,13 @@ const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={handleBack}
-                className="mt-4 flex items-center justify-center gap-1 text-xs font-semibold text-slate-400 hover:text-white mx-auto"
+                onClick={() => {
+                  setShowPasswordInput(true);
+                  setError('');
+                }}
+                className="mt-4 flex items-center justify-center gap-1 text-sm font-semibold text-slate-400 hover:text-white mx-auto"
               >
-                <ArrowLeft className="h-3 w-3" /> Login with email
+                Login with email
               </button>
             </div>
           ) : (
@@ -362,12 +404,12 @@ const LoginPage: React.FC = () => {
                   {useRecovery ? <KeySquare className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
                 </div>
                 <h2 className="text-base font-bold text-white">
-                  {useRecovery ? 'Enter a recovery code' : 'Two-Factor Authentication'}
+                  {useRecovery ? 'Enter a one-time code' : 'Two-Factor Authentication'}
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
                   {useRecovery
                     ? 'Use one of the single-use codes you saved when enabling TOTP.'
-                    : `Enter the 6-digit code for ${email} from your Google Authenticator app.`}
+                    : `Enter the 6-digit code from your Google Authenticator app.`}
                 </p>
               </div>
 
@@ -396,7 +438,7 @@ const LoginPage: React.FC = () => {
                 className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-90 disabled:opacity-60"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                {useRecovery ? 'Verify Recovery Code' : 'Verify & Sign In'}
+                Verify Code
               </button>
 
               <div className="flex flex-col gap-2 pt-2">
@@ -411,17 +453,18 @@ const LoginPage: React.FC = () => {
                   }}
                   className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
                 >
-                  <KeySquare className="h-3.5 w-3.5" />
                   {useRecovery ? 'Use authenticator code instead' : 'Lost your device? Use a recovery code'}
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleBack}
+                  onClick={() => {
+                    setShowPasswordInput(true);
+                    setError('');
+                  }}
                   className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Login with email
+                  🔑 Login with email
                 </button>
               </div>
             </form>

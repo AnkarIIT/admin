@@ -91,6 +91,7 @@ interface AdminContextType {
   authChecked: boolean;
   updateAuthUser: (user: AuthUser) => void;
   loginWithTotp: (code: string, email?: string) => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
   completeSetup: (code: string, email?: string) => Promise<{ user: AuthUser; recoveryCodes: string[] }>;
   enterAdmin: (user: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
@@ -315,6 +316,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const loginWithTotp = async (code: string, email?: string) => {
     const res = await api.totpLogin(code, email);
+    if (res.authenticated && res.user) {
+      await applyUser(res.user);
+    }
+  };
+
+  const loginWithPassword = async (email: string, password: string) => {
+    const res = await api.passwordLogin(email, password);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
     }
@@ -770,6 +778,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         authChecked,
         updateAuthUser,
         loginWithTotp,
+        loginWithPassword,
         completeSetup,
         enterAdmin,
         logout,

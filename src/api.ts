@@ -74,6 +74,8 @@ export const api = {
     }),
   totpLogin: (code: string, email?: string) =>
     request<LoginResponse>('/auth/totp-login', { method: 'POST', body: JSON.stringify({ code, email }) }),
+  passwordLogin: (email: string, password: string) =>
+    request<LoginResponse>('/auth/password-login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 };
 
