@@ -90,8 +90,8 @@ interface AdminContextType {
   user: AuthUser | null;
   authChecked: boolean;
   updateAuthUser: (user: AuthUser) => void;
-  loginWithTotp: (code: string) => Promise<void>;
-  completeSetup: (code: string) => Promise<{ user: AuthUser; recoveryCodes: string[] }>;
+  loginWithTotp: (code: string, email?: string) => Promise<void>;
+  completeSetup: (code: string, email?: string) => Promise<{ user: AuthUser; recoveryCodes: string[] }>;
   enterAdmin: (user: AuthUser) => Promise<void>;
   logout: () => Promise<void>;
 
@@ -313,15 +313,15 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await loadAllData();
   };
 
-  const loginWithTotp = async (code: string) => {
-    const res = await api.totpLogin(code);
+  const loginWithTotp = async (code: string, email?: string) => {
+    const res = await api.totpLogin(code, email);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
     }
   };
 
-  const completeSetup = async (code: string) => {
-    const res = await api.totpConfirm(code);
+  const completeSetup = async (code: string, email?: string) => {
+    const res = await api.totpConfirm(code, email);
     return { user: res.user!, recoveryCodes: res.recoveryCodes || [] };
   };
 
