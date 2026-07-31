@@ -1,14 +1,38 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { generateSync } from "otplib";
 import app from "../server";
+import prisma from "../lib/prisma";
 
-const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_PASSWORD = "admin123";
+export const TOTP_TEST_EMAIL = "totp-test@example.com";
+export const TOTP_TEST_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+
+export function totpCode(secret: string = TOTP_TEST_SECRET): string {
+  return generateSync({ secret });
+}
+
+export async function ensureTestAdmin(): Promise<string> {
+  const admin = await prisma.admins.upsert({
+    where: { email: TOTP_TEST_EMAIL },
+    update: { totp_secret: TOTP_TEST_SECRET, totp_enabled: true },
+    create: {
+      email: TOTP_TEST_EMAIL,
+      password_hash: "unused",
+      role: "admin",
+      totp_secret: TOTP_TEST_SECRET,
+      totp_enabled: true,
+    },
+  });
+  return admin.id;
+}
 
 export function loginCookie(): Promise<string> {
-  return request(app)
-    .post("/api/auth/login")
-    .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD })
+  return ensureTestAdmin()
+    .then(() =>
+      request(app)
+        .post("/api/auth/totp-login")
+        .send({ email: TOTP_TEST_EMAIL, code: totpCode() })
+    )
     .then((res) => {
       expect(res.status).toBe(200);
       const cookies = (res.headers["set-cookie"] as unknown as string[]) || [];
@@ -17,39 +41,34 @@ export function loginCookie(): Promise<string> {
 }
 
 describe("auth", () => {
-  it("rejects login with wrong password", async () => {
+  it("rejects login with a wrong code", async () => {
+    await ensureTestAdmin();
     const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: "wrong-password" });
+      .post("/api/auth/totp-login")
+      .send({ email: TOTP_TEST_EMAIL, code: "000000" });
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Invalid email or password");
+    expect(res.body.error).toBe("Invalid authentication code");
   });
 
-  it("rejects login with unknown email", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "nobody@example.com", password: "whatever" });
-    expect(res.status).toBe(401);
-  });
-
-  it("rejects login with missing fields", async () => {
-    const res = await request(app).post("/api/auth/login").send({ email: ADMIN_EMAIL });
+  it("rejects login with a missing code", async () => {
+    const res = await request(app).post("/api/auth/totp-login").send({ email: TOTP_TEST_EMAIL });
     expect(res.status).toBe(400);
   });
 
-  it("logs in and sets a session cookie", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
-    expect(res.status).toBe(200);
-    expect(res.body.authenticated).toBe(true);
-    expect(res.body.user.email).toBe(ADMIN_EMAIL);
-    expect(res.headers["set-cookie"]).toBeDefined();
+  it("rejects login when TOTP is not enabled", async () => {
+    const res = await request(app).post("/api/auth/totp-login").send({ code: totpCode() });
+    expect(res.status).toBe(401);
   });
 
-  it("serves data routes without a session", async () => {
+  it("logs in with a valid TOTP code and sets a session cookie", async () => {
+    const cookie = await loginCookie();
+    expect(cookie).toMatch(/^admin_session=/);
+  });
+
+  it("blocks data routes without a session", async () => {
     const res = await request(app).get("/api/products");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Not authenticated");
   });
 
   it("returns the current user via /api/auth/me", async () => {
@@ -57,7 +76,7 @@ describe("auth", () => {
     const res = await request(app).get("/api/auth/me").set("Cookie", cookie);
     expect(res.status).toBe(200);
     expect(res.body.authenticated).toBe(true);
-    expect(res.body.user.email).toBe(ADMIN_EMAIL);
+    expect(res.body.user.email).toBe(TOTP_TEST_EMAIL);
   });
 
   it("invalidates the session on logout", async () => {

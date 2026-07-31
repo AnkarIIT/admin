@@ -30,6 +30,7 @@ import {
   mapDbOrder,
   deriveCustomers,
   deriveCategories,
+  checkAuth,
 } from '../api';
 import type { AuthUser } from '../api';
 
@@ -89,6 +90,10 @@ interface AdminContextType {
   user: AuthUser | null;
   authChecked: boolean;
   updateAuthUser: (user: AuthUser) => void;
+  loginWithTotp: (code: string) => Promise<void>;
+  completeSetup: (code: string) => Promise<{ user: AuthUser; recoveryCodes: string[] }>;
+  enterAdmin: (user: AuthUser) => Promise<void>;
+  logout: () => Promise<void>;
 
   // Print Invoice Modal State
   printingOrder: Order | null;
@@ -284,9 +289,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setUser({ id: 'admin', email: 'admin@example.com', name: 'Admin', role: 'super_admin', totpEnabled: false });
-      await loadAllData();
+      const currentUser = await checkAuth();
       if (cancelled) return;
+      if (currentUser) {
+        setUser(currentUser);
+        await loadAllData();
+      } else {
+        setLoading(false);
+      }
       setAuthChecked(true);
     })();
     return () => {
@@ -296,6 +306,39 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateAuthUser = (nextUser: AuthUser) => {
     setUser(nextUser);
+  };
+
+  const applyUser = async (nextUser: AuthUser) => {
+    setUser(nextUser);
+    await loadAllData();
+  };
+
+  const loginWithTotp = async (code: string) => {
+    const res = await api.totpLogin(code);
+    if (res.authenticated && res.user) {
+      await applyUser(res.user);
+    }
+  };
+
+  const completeSetup = async (code: string) => {
+    const res = await api.totpConfirm(code);
+    return { user: res.user!, recoveryCodes: res.recoveryCodes || [] };
+  };
+
+  const enterAdmin = async (nextUser: AuthUser) => {
+    await applyUser(nextUser);
+  };
+
+  const logout = async () => {
+    try {
+      await api.logout();
+    } catch {}
+    setUser(null);
+    setProducts([]);
+    setOrders([]);
+    setCustomers([]);
+    setStaffUsers([]);
+    setActivityLogs([]);
   };
 
   // Product CRUD (persisted to database)
@@ -726,6 +769,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         user,
         authChecked,
         updateAuthUser,
+        loginWithTotp,
+        completeSetup,
+        enterAdmin,
+        logout,
 
         printingOrder,
         setPrintingOrder,

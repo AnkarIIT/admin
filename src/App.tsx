@@ -2,6 +2,7 @@ import React from 'react';
 import { AdminProvider, useAdmin } from './context/AdminContext';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import LoginPage from './components/LoginPage';
 import { ToastContainer } from './components/common/ToastContainer';
 import { InvoicePrinterModal } from './components/common/InvoicePrinterModal';
 
@@ -50,7 +51,7 @@ const MainLayout: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { authChecked } = useAdmin();
+  const { user, authChecked } = useAdmin();
 
   if (!authChecked) {
     return (
@@ -60,6 +61,15 @@ const AppContent: React.FC = () => {
           <span className="text-sm font-semibold">Loading workspace...</span>
         </div>
       </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <LoginPage />
+        <ToastContainer />
+      </>
     );
   }
 

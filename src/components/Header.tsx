@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ShoppingBag,
   Plus,
+  LogOut,
   Settings2,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ mobileMenuOpen = false, setMobil
     exportBackupJSON,
     setCurrentTab,
     user,
+    logout,
   } = useAdmin();
 
   const currentUser = user
@@ -264,6 +266,17 @@ export const Header: React.FC<HeaderProps> = ({ mobileMenuOpen = false, setMobil
                 >
                     <RotateCcw className="h-3.5 w-3.5" /> Reload Data from DB
                   </button>
+                  <div className="border-t border-slate-100 pt-1 mt-1 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        logout();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                    >
+                      <LogOut className="h-3.5 w-3.5" /> Sign Out
+                    </button>
+                  </div>
                 </div>
               </div>
           )}

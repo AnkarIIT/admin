@@ -40,9 +40,9 @@ describe("coupons", () => {
     expect(res.body.some((c: any) => c.code === "SD_FIRST_10")).toBe(true);
   });
 
-  it("serves coupon routes without a session", async () => {
+  it("blocks coupon routes without a session", async () => {
     const res = await request(app).get("/api/coupons");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 
   it("creates a coupon and persists it to the storefront's global row", async () => {

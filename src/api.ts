@@ -34,8 +34,6 @@ export interface AuthUser {
 export interface LoginResponse {
   authenticated?: boolean;
   user?: AuthUser;
-  twoFactorRequired?: boolean;
-  pendingToken?: string;
   recoveryCodes?: string[];
 }
 
@@ -67,20 +65,28 @@ export const api = {
   deleteCoupon: (code: string) =>
     request<{ success: boolean }>(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
-  login: (email: string, password: string) =>
-    request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  verify2fa: (pendingToken: string, code: string) =>
-    request<LoginResponse>('/auth/verify-2fa', { method: 'POST', body: JSON.stringify({ pendingToken, code }) }),
-  logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
-  setup2fa: () => request<{ secret: string; uri: string; qr: string }>('/auth/setup-2fa', { method: 'POST' }),
-  confirm2fa: (code: string) =>
-    request<{ success: boolean; user: AuthUser; recoveryCodes: string[] }>('/auth/confirm-2fa', {
+  totpStatus: () => request<{ enabled: boolean }>('/auth/totp-status'),
+  totpSetup: () => request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST' }),
+  totpConfirm: (code: string) =>
+    request<{ success: boolean; user: AuthUser; recoveryCodes: string[] }>('/auth/totp-confirm', {
       method: 'POST',
       body: JSON.stringify({ code }),
     }),
-  disable2fa: (code: string) =>
-    request<{ success: boolean; user: AuthUser }>('/auth/disable-2fa', { method: 'POST', body: JSON.stringify({ code }) }),
+  totpLogin: (code: string) =>
+    request<LoginResponse>('/auth/totp-login', { method: 'POST', body: JSON.stringify({ code }) }),
+  logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 };
+
+export async function checkAuth(): Promise<AuthUser | null> {
+  try {
+    const res = await fetch('/api/auth/me', { headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.user || null;
+  } catch {
+    return null;
+  }
+}
 
 export function mapDbProduct(p: Record<string, any>): Product {
   const price = Number(p.base_price) || 0;

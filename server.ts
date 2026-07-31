@@ -2,7 +2,6 @@
 import path from "path";
 import { pathToFileURL } from "url";
 import dotenv from "dotenv";
-import bcrypt from "bcryptjs";
 import helmet from "helmet";
 import { z } from "zod";
 import prisma from "./lib/prisma";
@@ -16,12 +15,6 @@ import {
   destroySession,
   setSessionCookie,
   clearSessionCookie,
-  pendingLoginToken,
-  consumePendingLogin,
-  peekPendingLogin,
-  isVerify2faRateLimited,
-  recordVerify2faAttempt,
-  clearVerify2faRateLimit,
   generateRecoveryCodes,
   hashRecoveryCodes,
   consumeRecoveryCode,
@@ -68,58 +61,88 @@ app.get("/api/health", async (req, res) => {
 const clientIp = (req: express.Request) =>
   (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 
-app.post("/api/auth/login", checkRateLimit, async (req, res) => {
+async function primaryAdmin() {
+  const superAdmin = await prisma.admins.findFirst({ where: { role: "super_admin" }, orderBy: { created_at: "asc" } });
+  if (superAdmin) return superAdmin;
+  return prisma.admins.findFirst({ orderBy: { created_at: "asc" } });
+}
+
+async function resolveAdmin(email?: unknown) {
+  if (email && typeof email === "string" && email.trim()) {
+    const admin = await prisma.admins.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (admin) return admin;
+  }
+  return primaryAdmin();
+}
+
+app.get("/api/auth/totp-status", async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
-
-    const admin = await prisma.admins.findUnique({ where: { email: String(email).toLowerCase() } });
-    if (!admin) {
-      await bcrypt.compare(password, "$2b$10$cM9VrT8WpB1rY3gQpMZbYOPZ9sS5kMqX7Q0Q7Q0Q7Q0Q7Q0Q7Q0Q7Q0");
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const ok = await bcrypt.compare(password, admin.password_hash);
-    if (!ok) return res.status(401).json({ error: "Invalid email or password" });
-
-    clearLoginRateLimit(req);
-
-    if (admin.totp_enabled && admin.totp_secret) {
-      const pendingToken = await pendingLoginToken(admin.id);
-      return res.json({ twoFactorRequired: true, pendingToken });
-    }
-
-    await prisma.audit_logs.create({
-      data: { admin_id: admin.id, action: "login_success", details: { module: "Auth" }, ip_address: clientIp(req) },
-    });
-
-    const token = await createSession(admin.id);
-    setSessionCookie(res, token);
-    res.json({ authenticated: true, user: publicUser(admin) });
+    const admin = await resolveAdmin((req.query as any).email);
+    res.json({ enabled: !!(admin && admin.totp_enabled && admin.totp_secret) });
   } catch (e: any) {
-    handleError(res, e, "POST /api/auth/login");
+    res.status(500).json({ error: "Failed to read TOTP status" });
   }
 });
 
-app.post("/api/auth/verify-2fa", async (req, res) => {
+app.post("/api/auth/totp-setup", async (req, res) => {
   try {
-    const { pendingToken, code } = req.body || {};
-    if (!pendingToken || typeof pendingToken !== "string") {
-      return res.status(400).json({ error: "Invalid 2FA session" });
+    const admin = await resolveAdmin((req.body || {}).email);
+    if (!admin) return res.status(404).json({ error: "No admin account found" });
+    if (admin.totp_enabled && admin.totp_secret) {
+      return res.status(409).json({ error: "TOTP is already enabled" });
     }
-    const ip = clientIp(req);
-    if (isVerify2faRateLimited(ip, pendingToken)) {
-      return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
+    const secret = generateTotpSecret();
+    await prisma.admins.update({ where: { id: admin.id }, data: { totp_secret: secret, recovery_codes_hash: null } });
+    const uri = totpKeyUri(admin.email, secret);
+    const qr = await totpQrDataUrl(uri);
+    res.json({ secret, uri, qr });
+  } catch (e: any) {
+    res.status(500).json({ error: "Failed to start TOTP setup" });
+  }
+});
+
+app.post("/api/auth/totp-confirm", async (req, res) => {
+  try {
+    const { code, email } = req.body || {};
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ error: "Authentication code is required" });
     }
+    const admin = await resolveAdmin(email);
+    if (!admin || !admin.totp_secret) return res.status(400).json({ error: "No pending TOTP setup" });
+    if (admin.totp_enabled) return res.status(409).json({ error: "TOTP is already enabled" });
+    if (!(await verifyTotp(String(code).trim(), admin.totp_secret))) {
+      return res.status(401).json({ error: "Invalid authentication code" });
+    }
+    const recoveryCodes = generateRecoveryCodes();
+    const recoveryHashes = await hashRecoveryCodes(recoveryCodes);
+    await prisma.admins.update({
+      where: { id: admin.id },
+      data: { totp_enabled: true, recovery_codes_hash: recoveryHashes },
+    });
+    await prisma.audit_logs.create({
+      data: { admin_id: admin.id, action: "enable_2fa", details: { module: "Security" }, ip_address: clientIp(req) },
+    });
+    const token = await createSession(admin.id);
+    setSessionCookie(res, token);
+    res.json({ success: true, user: publicUser({ ...admin, totp_enabled: true }), recoveryCodes });
+  } catch (e: any) {
+    res.status(500).json({ error: "Failed to enable TOTP" });
+  }
+});
 
-    const userId = await peekPendingLogin(pendingToken);
-    if (!userId) return res.status(400).json({ error: "2FA session expired or invalid. Log in again." });
-
-    const admin = await prisma.admins.findUnique({ where: { id: userId } });
-    if (!admin) return res.status(400).json({ error: "Account not found. Log in again." });
-
-    const codeStr = String(code || "").trim();
-    let verified = !!(admin.totp_secret && (await verifyTotp(codeStr, admin.totp_secret)));
+app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
+  try {
+    const { code, email } = req.body || {};
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ error: "Authentication code is required" });
+    }
+    const admin = await resolveAdmin(email);
+    if (!admin || !admin.totp_enabled || !admin.totp_secret) {
+      await verifyTotp(String(code).trim(), "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP");
+      return res.status(401).json({ error: "Invalid authentication code" });
+    }
+    const codeStr = String(code).trim();
+    let verified = await verifyTotp(codeStr, admin.totp_secret);
     let usedRecovery = false;
 
     if (!verified && admin.recovery_codes_hash) {
@@ -135,28 +158,23 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
     }
 
     if (!verified) {
-      recordVerify2faAttempt(ip, pendingToken);
       return res.status(401).json({ error: "Invalid authentication code" });
     }
 
-    await consumePendingLogin(pendingToken);
-    clearVerify2faRateLimit(ip, pendingToken);
-    (req as any).clientIp = ip;
     clearLoginRateLimit(req);
     await prisma.audit_logs.create({
       data: {
         admin_id: admin.id,
         action: usedRecovery ? "login_recovery_code" : "login_success",
-        details: { module: "Auth", twoFactor: true },
-        ip_address: ip,
+        details: { module: "Auth" },
+        ip_address: clientIp(req),
       },
     });
-
     const token = await createSession(admin.id);
     setSessionCookie(res, token);
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
-    res.status(500).json({ error: "Verification failed" });
+    handleError(res, e, "POST /api/auth/totp-login");
   }
 });
 
@@ -180,65 +198,8 @@ app.post("/api/auth/logout", async (req, res) => {
   res.json({ success: true });
 });
 
-app.post("/api/auth/setup-2fa", requireAuth, async (req, res) => {
-  try {
-    const admin = await prisma.admins.findUnique({ where: { id: (req as any).userId } });
-    if (!admin) return res.status(404).json({ error: "Admin not found" });
-    const secret = generateTotpSecret();
-    await prisma.admins.update({ where: { id: admin.id }, data: { totp_secret: secret, recovery_codes_hash: null } });
-    const uri = totpKeyUri(admin.email, secret);
-    const qr = await totpQrDataUrl(uri);
-    res.json({ secret, uri, qr });
-  } catch (e: any) {
-    res.status(500).json({ error: "Failed to start 2FA setup" });
-  }
-});
-
-app.post("/api/auth/confirm-2fa", requireAuth, async (req, res) => {
-  try {
-    const { code } = req.body || {};
-    const admin = await prisma.admins.findUnique({ where: { id: (req as any).userId } });
-    if (!admin || !admin.totp_secret) return res.status(400).json({ error: "No pending 2FA setup" });
-    if (!(await verifyTotp(String(code || "").trim(), admin.totp_secret))) {
-      return res.status(401).json({ error: "Invalid authentication code" });
-    }
-    const recoveryCodes = generateRecoveryCodes();
-    const recoveryHashes = await hashRecoveryCodes(recoveryCodes);
-    await prisma.admins.update({
-      where: { id: admin.id },
-      data: { totp_enabled: true, recovery_codes_hash: recoveryHashes },
-    });
-    await prisma.audit_logs.create({
-      data: { admin_id: admin.id, action: "enable_2fa", details: { module: "Security" }, ip_address: clientIp(req) },
-    });
-    res.json({ success: true, user: publicUser({ ...admin, totp_enabled: true }), recoveryCodes });
-  } catch (e: any) {
-    res.status(500).json({ error: "Failed to enable 2FA" });
-  }
-});
-
-app.post("/api/auth/disable-2fa", requireAuth, async (req, res) => {
-  try {
-    const { code } = req.body || {};
-    const admin = await prisma.admins.findUnique({ where: { id: (req as any).userId } });
-    if (!admin || !admin.totp_secret) return res.status(400).json({ error: "2FA not configured" });
-    if (!(await verifyTotp(String(code || "").trim(), admin.totp_secret))) {
-      return res.status(401).json({ error: "Invalid authentication code" });
-    }
-    await prisma.admins.update({
-      where: { id: admin.id },
-      data: { totp_enabled: false, recovery_codes_hash: null },
-    });
-    await prisma.audit_logs.create({
-      data: { admin_id: admin.id, action: "disable_2fa", details: { module: "Security" }, ip_address: clientIp(req) },
-    });
-    res.json({ success: true, user: publicUser({ ...admin, totp_enabled: false }) });
-  } catch (e: any) {
-    res.status(500).json({ error: "Failed to disable 2FA" });
-  }
-});
-
 // ---- Database API Routes ----
+app.use("/api", requireAuth);
 
 const num = (v: any) => (v == null ? null : Number(v));
 
