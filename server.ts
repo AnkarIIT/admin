@@ -14,6 +14,7 @@ import {
   createSession,
   destroySession,
   setSessionCookie,
+  setCsrfCookie,
   clearSessionCookie,
   generateRecoveryCodes,
   hashRecoveryCodes,
@@ -23,6 +24,8 @@ import {
   generateTotpSecret,
   totpKeyUri,
   totpQrDataUrl,
+  csrfProtection,
+  validateApiKey,
 } from "./lib/auth";
 
 dotenv.config();
@@ -38,6 +41,22 @@ app.use(
     crossOriginResourcePolicy: { policy: "same-origin" },
   })
 );
+
+// Simple configurable CORS for cross-domain admin/storefront integration.
+// Set ALLOWED_ORIGINS in the environment as a comma-separated list.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+app.use((req, res, next) => {
+  const origin = (req.headers.origin || "") as string;
+  if (origin && allowedOrigins.length && allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -122,8 +141,9 @@ app.post("/api/auth/totp-confirm", async (req, res) => {
     await prisma.audit_logs.create({
       data: { admin_id: admin.id, action: "enable_2fa", details: { module: "Security" }, ip_address: clientIp(req) },
     });
-    const token = await createSession(admin.id);
-    setSessionCookie(res, token);
+    const sess = await createSession(admin.id);
+    setSessionCookie(res, sess.token);
+    setCsrfCookie(res, sess.csrf);
     res.json({ success: true, user: publicUser({ ...admin, totp_enabled: true }), recoveryCodes });
   } catch (e: any) {
     res.status(500).json({ error: "Failed to enable TOTP" });
@@ -170,8 +190,9 @@ app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
         ip_address: clientIp(req),
       },
     });
-    const token = await createSession(admin.id);
-    setSessionCookie(res, token);
+    const sess = await createSession(admin.id);
+    setSessionCookie(res, sess.token);
+    setCsrfCookie(res, sess.csrf);
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
     handleError(res, e, "POST /api/auth/totp-login");
@@ -180,6 +201,12 @@ app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
 
 app.get("/api/auth/me", async (req, res) => {
   try {
+    const auth = (req.headers.authorization || "").toString();
+    if (auth.startsWith("Bearer ")) {
+      const token = auth.slice(7).trim();
+      if (validateApiKey(token)) return res.json({ authenticated: true, user: null });
+    }
+
     const token = sessionToken(req);
     const session = await currentSession(req);
     if (!session) return res.status(401).json({ error: "Not authenticated" });
@@ -199,7 +226,8 @@ app.post("/api/auth/logout", async (req, res) => {
 });
 
 // ---- Database API Routes ----
-app.use("/api", requireAuth);
+// Apply CSRF protection before auth; API key bearer tokens are accepted and bypass CSRF checks.
+app.use("/api", csrfProtection, requireAuth);
 
 const num = (v: any) => (v == null ? null : Number(v));
 

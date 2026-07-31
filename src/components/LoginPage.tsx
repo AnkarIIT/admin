@@ -10,6 +10,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 function formatRecoveryInput(raw: string): string {
@@ -18,9 +19,12 @@ function formatRecoveryInput(raw: string): string {
   return groups.join('-');
 }
 
-const LoginPage: React.FC = () => {
+export const LoginPage: React.FC = () => {
   const { loginWithTotp, completeSetup, enterAdmin, addToast } = useAdmin();
 
+  const [emailMode, setEmailMode] = useState(false);
+  const [adminEmail, setAdminEmail] = useState(() => localStorage.getItem('ADMIN_LOGIN_EMAIL') || '');
+  const [emailInput, setEmailInput] = useState(() => localStorage.getItem('ADMIN_LOGIN_EMAIL') || '');
   const [checking, setChecking] = useState(true);
   const [enabled, setEnabled] = useState(false);
 
@@ -39,26 +43,37 @@ const LoginPage: React.FC = () => {
 
   const codeRef = useRef<HTMLInputElement>(null);
   const setupRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const autoSubmitted = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      setChecking(true);
       try {
-        const res = await api.totpStatus();
+        const res = await api.totpStatus(adminEmail || undefined);
+        if (cancelled) return;
         setEnabled(res.enabled);
+        if (res.enabled) setSetup(null);
+        setError('');
       } catch (err: any) {
+        if (cancelled) return;
         setError(err.message || 'Could not reach the server.');
       } finally {
+        if (cancelled) return;
         setChecking(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [adminEmail]);
 
   useEffect(() => {
     if (checking || enabled || setup) return;
     (async () => {
       try {
-        const res = await api.totpSetup();
+        const res = await api.totpSetup(adminEmail || undefined);
         setSetup(res);
         setError('');
       } catch (err: any) {
@@ -80,7 +95,7 @@ const LoginPage: React.FC = () => {
       setError('');
       setBusy(true);
       try {
-        await loginWithTotp(value);
+        await loginWithTotp(value, adminEmail || undefined);
       } catch (err: any) {
         setError(err.message || 'Invalid code');
         setCode('');
@@ -91,7 +106,7 @@ const LoginPage: React.FC = () => {
         setBusy(false);
       }
     },
-    [busy, loginWithTotp]
+    [adminEmail, busy, loginWithTotp]
   );
 
   useEffect(() => {
@@ -124,7 +139,7 @@ const LoginPage: React.FC = () => {
     setError('');
     setBusy(true);
     try {
-      const res = await completeSetup(value);
+      const res = await completeSetup(value, adminEmail || undefined);
       setSetupUser(res.user);
       setRecoveryCodes(res.recoveryCodes);
       setCopied(false);
@@ -147,59 +162,125 @@ const LoginPage: React.FC = () => {
   };
 
   const recoveryReady = code.replace(/[^A-Z0-9]/g, '').length === 12;
-  const inputBase =
-    'w-full rounded-xl border border-white/10 bg-slate-900/70 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 min-h-11';
+
+  const openEmailLogin = () => {
+    setEmailMode(true);
+    setError('');
+    setTimeout(() => emailRef.current?.focus(), 50);
+  };
+
+  const applyAdminEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Enter a valid admin email');
+      return;
+    }
+    localStorage.setItem('ADMIN_LOGIN_EMAIL', email);
+    setAdminEmail(email);
+    setSetup(null);
+    setSetupCode('');
+    setCode('');
+    setUseRecovery(false);
+    setRecoveryCodes([]);
+    setSetupUser(null);
+    setCopied(false);
+    autoSubmitted.current = false;
+    setEmailMode(false);
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden font-sans">
-      <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-indigo-600/30 blur-3xl" />
-      <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-purple-600/30 blur-3xl" />
-      <div className="absolute top-1/3 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0c] font-sans selection:bg-indigo-500/30">
+      {/* Minimal ambient light */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[500px] w-[800px] bg-indigo-500/10 blur-[120px] pointer-events-none" />
 
-      <div className="relative z-10 w-full max-w-md px-4">
-        <div className="mb-8 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/30">
-            <Boxes className="h-8 w-8 text-white" />
+      <div className="relative z-10 w-full max-w-sm px-6">
+        <div className="mb-12 text-center">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.03] border border-white/5 mb-6">
+            <Boxes className="h-6 w-6 text-indigo-400" />
           </div>
-          <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-white">
-            3D By SD <span className="text-indigo-400">Admin</span>
+          <h1 className="text-xl font-medium tracking-tight text-white">
+            Admin <span className="text-slate-500">Workspace</span>
           </h1>
-          <p className="mt-1 text-sm text-slate-400">Secured sign-in with your authenticator app</p>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl shadow-2xl">
-          {checking ? (
-            <div className="flex min-h-40 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+        <div className="space-y-8 transition-all duration-500 ease-in-out">
+          {emailMode ? (
+            <form onSubmit={applyAdminEmail} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-medium text-white">Admin Login with Email</h2>
+                <p className="text-[13px] text-slate-500 leading-relaxed">
+                  Enter your admin email to continue with TOTP authentication.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <input
+                  ref={emailRef}
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="admin@yourstore.com"
+                  autoComplete="email"
+                  className="w-full h-12 rounded-xl border border-white/10 bg-white/[0.02] px-4 text-sm text-white placeholder-white/30 outline-none transition-all focus:border-indigo-500/50"
+                />
+              </div>
+
+              {error && (
+                <div className="text-center text-[12px] font-medium text-red-400/90 bg-red-400/5 py-2 rounded-lg border border-red-400/10">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <button
+                  type="submit"
+                  className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 text-[13px] font-semibold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/10"
+                >
+                  Continue to TOTP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmailMode(false);
+                    setError('');
+                  }}
+                  className="text-[12px] font-medium text-slate-500 hover:text-indigo-400 transition-colors"
+                >
+                  Back to authenticator screen
+                </button>
+              </div>
+            </form>
+          ) : checking ? (
+            <div className="flex min-h-[200px] items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-700" />
             </div>
           ) : recoveryCodes.length > 0 && setupUser ? (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4">
-                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
-                <div>
-                  <h2 className="text-sm font-extrabold text-white">Save these recovery codes</h2>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Each code works only once and can sign you in if you lose your phone. Store them somewhere safe — you
-                    will not see them again.
-                  </p>
-                </div>
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-2">
+                <h2 className="text-lg font-medium text-white">Save recovery codes</h2>
+                <p className="text-[13px] text-slate-500 leading-relaxed">
+                  These codes work only once. Store them safe — you will not see them again.
+                </p>
               </div>
+
               <div className="grid grid-cols-1 gap-2">
                 {recoveryCodes.map((rc, i) => (
                   <div
                     key={rc}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs font-bold tracking-wider text-amber-200"
+                    className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-4 py-2.5 font-mono text-[12px] font-medium tracking-wider text-amber-200/80"
                   >
-                    <span className="text-slate-500">#{String(i + 1).padStart(2, '0')}</span>
+                    <span className="text-slate-600">#{String(i + 1).padStart(2, '0')}</span>
                     {rc}
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
+
+              <div className="flex flex-col gap-3 pt-2">
                 <button
                   type="button"
                   onClick={copyRecoveryCodes}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 text-sm font-bold text-white hover:bg-white/10"
+                  className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-white/[0.03] border border-white/5 text-[13px] font-semibold text-white transition-all hover:bg-white/[0.06]"
                 >
                   {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                   {copied ? 'Copied' : 'Copy All'}
@@ -207,148 +288,154 @@ const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setupUser && enterAdmin(setupUser)}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90"
+                  className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 text-[13px] font-semibold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/10"
                 >
-                  <ShieldCheck className="h-4 w-4" /> Continue to Admin
+                  Continue to Workspace
                 </button>
               </div>
             </div>
           ) : !enabled ? (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
-                  <Smartphone className="h-6 w-6" />
-                </div>
-                <h2 className="text-base font-bold text-white">Set up your authenticator</h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  First time here? Scan the QR code with Google Authenticator to enable TOTP login for your admin.
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-medium text-white">Setup Authenticator</h2>
+                <p className="text-[13px] text-slate-500 leading-relaxed">
+                  Enable two-factor login by scanning the QR code with your app.
                 </p>
+                {adminEmail && <p className="text-[11px] text-indigo-300">Admin: {adminEmail}</p>}
               </div>
 
               {setup ? (
-                <>
+                <div className="space-y-8">
                   <div className="flex justify-center">
-                    <img
-                      src={setup.qr}
-                      alt="TOTP QR Code"
-                      className="h-44 w-44 rounded-2xl border border-white/10 bg-white p-2"
-                    />
+                    <div className="relative p-3 bg-white rounded-2xl">
+                      <img src={setup.qr} alt="TOTP QR" className="h-40 w-44" />
+                    </div>
                   </div>
-                  <div>
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Manual setup key</p>
-                    <p className="break-all rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs font-bold text-indigo-300">
+
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-600 ml-1">Manual key</p>
+                    <div className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 font-mono text-[12px] font-medium text-indigo-300/80 break-all text-center">
                       {setup.secret}
-                    </p>
+                    </div>
                   </div>
-                  <form onSubmit={handleSetupConfirm} className="space-y-3">
-                    <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Enter 6-digit code
-                      </label>
+
+                  <form onSubmit={handleSetupConfirm} className="space-y-6">
+                    <div className="space-y-4">
                       <input
                         ref={setupRef}
                         value={setupCode}
                         onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="000000"
                         inputMode="numeric"
-                        pattern="[0-9]*"
-                        autoComplete="one-time-code"
-                        aria-label="Authenticator setup code"
-                        className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 py-3 text-center text-2xl font-bold tracking-[0.35em] text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                        autoComplete="off"
+                        className="w-full h-14 bg-transparent border-b border-white/10 text-center text-3xl font-light tracking-[0.2em] text-white placeholder-white/5 outline-none transition-all focus:border-indigo-500/50"
                       />
                     </div>
+
                     {error && (
-                      <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
+                      <div className="text-center text-[12px] font-medium text-red-400/90 bg-red-400/5 py-2 rounded-lg border border-red-400/10">
                         {error}
                       </div>
                     )}
+
                     <button
                       type="submit"
                       disabled={busy || setupCode.length !== 6}
-                      className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90 disabled:opacity-60"
+                      className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 text-[13px] font-semibold text-white transition-all hover:bg-indigo-500 disabled:opacity-50 shadow-lg shadow-indigo-600/10"
                     >
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                      Enable TOTP Login
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Setup'}
                     </button>
                   </form>
-                </>
-              ) : (
-                <div className="flex min-h-24 items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                  <button
+                    type="button"
+                    onClick={openEmailLogin}
+                    className="mx-auto block text-[12px] font-medium text-slate-500 hover:text-indigo-400 transition-colors"
+                  >
+                    Switch to admin email login
+                  </button>
                 </div>
-              )}
-
-              {error && !setup && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
-                  {error}
+              ) : (
+                <div className="flex min-h-[100px] items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-800" />
                 </div>
               )}
             </div>
           ) : (
-            <form onSubmit={handleLoginForm} className="space-y-4">
-              <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 text-purple-300">
-                  {useRecovery ? <KeySquare className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
-                </div>
-                <h2 className="text-base font-bold text-white">
-                  {useRecovery ? 'Enter a recovery code' : 'Two-Factor Authentication'}
+            <form onSubmit={handleLoginForm} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center space-y-2">
+                <h2 className="text-lg font-medium text-white">
+                  {useRecovery ? 'Recovery Access' : 'Identity Verification'}
                 </h2>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="text-[13px] text-slate-500 leading-relaxed">
                   {useRecovery
-                    ? 'Use one of the single-use codes you saved when enabling TOTP.'
-                    : 'Enter the 6-digit code from your Google Authenticator app.'}
+                    ? 'Enter an emergency code to bypass the authenticator.'
+                    : 'Enter the 6-digit code from your authenticator app.'}
                 </p>
+                {adminEmail && <p className="text-[11px] text-indigo-300">Admin: {adminEmail}</p>}
               </div>
 
-              <input
-                ref={codeRef}
-                value={code}
-                onChange={useRecovery ? handleRecoveryInput : handleCodeInput}
-                placeholder={useRecovery ? 'ABCD-EFGH-IJKL' : '000000'}
-                inputMode={useRecovery ? 'text' : 'numeric'}
-                pattern={useRecovery ? undefined : '[0-9]*'}
-                autoComplete={useRecovery ? 'off' : 'one-time-code'}
-                maxLength={useRecovery ? 14 : 6}
-                aria-label={useRecovery ? 'Recovery code' : 'Authenticator code'}
-                className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 py-3 text-center text-2xl font-bold tracking-[0.35em] text-white placeholder-slate-600 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40"
-              />
+              <div className="space-y-4">
+                <input
+                  ref={codeRef}
+                  value={code}
+                  onChange={useRecovery ? handleRecoveryInput : handleCodeInput}
+                  placeholder={useRecovery ? 'XXXX-XXXX-XXXX' : '000000'}
+                  inputMode={useRecovery ? 'text' : 'numeric'}
+                  autoComplete={useRecovery ? 'off' : 'one-time-code'}
+                  maxLength={useRecovery ? 14 : 6}
+                  className="w-full h-14 bg-transparent border-b border-white/10 text-center text-3xl font-light tracking-[0.2em] text-white placeholder-white/5 outline-none transition-all focus:border-indigo-500/50"
+                />
+              </div>
 
               {error && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
+                <div className="text-center text-[12px] font-medium text-red-400/90 bg-red-400/5 py-2 rounded-lg border border-red-400/10">
                   {error}
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={busy || (useRecovery ? !recoveryReady : code.length !== 6)}
-                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-purple-500/25 transition hover:opacity-90 disabled:opacity-60"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                {useRecovery ? 'Verify Recovery Code' : 'Verify & Sign In'}
-              </button>
+              <div className="space-y-4">
+                {useRecovery && (
+                  <button
+                    type="submit"
+                    disabled={busy || !recoveryReady}
+                    className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 text-[13px] font-semibold text-white transition-all hover:bg-indigo-500 shadow-lg shadow-indigo-600/10"
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Access'}
+                  </button>
+                )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setUseRecovery((prev) => !prev);
-                  setCode('');
-                  setError('');
-                  autoSubmitted.current = false;
-                  setTimeout(() => codeRef.current?.focus(), 50);
-                }}
-                className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
-              >
-                <KeySquare className="h-3.5 w-3.5" />
-                {useRecovery ? 'Use authenticator code instead' : 'Lost your device? Use a recovery code'}
-              </button>
+                <div className="flex flex-col gap-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseRecovery((prev) => !prev);
+                      setCode('');
+                      setError('');
+                      autoSubmitted.current = false;
+                      setTimeout(() => codeRef.current?.focus(), 50);
+                    }}
+                    className="text-[12px] font-medium text-slate-500 hover:text-indigo-400 transition-colors"
+                  >
+                    {useRecovery ? 'Use authenticator code' : 'Lost device? Use recovery code'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openEmailLogin}
+                    className="text-[12px] font-medium text-slate-500 hover:text-indigo-400 transition-colors"
+                  >
+                    Switch to admin email login
+                  </button>
+                </div>
+              </div>
             </form>
           )}
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-slate-400">
-          Protected with TOTP two-factor authentication · No password required
-        </p>
+        <div className="mt-24 text-center">
+          <p className="text-[10px] font-medium uppercase tracking-[0.3em] text-slate-700">
+            Secure Admin Gateway
+          </p>
+        </div>
       </div>
     </div>
   );
