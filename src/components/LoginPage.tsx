@@ -10,6 +10,8 @@ import {
   Copy,
   Check,
   AlertTriangle,
+  Mail,
+  ArrowLeft,
 } from 'lucide-react';
 
 function formatRecoveryInput(raw: string): string {
@@ -21,7 +23,11 @@ function formatRecoveryInput(raw: string): string {
 const LoginPage: React.FC = () => {
   const { loginWithTotp, completeSetup, enterAdmin, addToast } = useAdmin();
 
-  const [checking, setChecking] = useState(true);
+  // Email input state
+  const [email, setEmail] = useState('');
+  const [emailEntered, setEmailEntered] = useState(false);
+
+  const [checking, setChecking] = useState(false);
   const [enabled, setEnabled] = useState(false);
 
   // Login mode
@@ -41,31 +47,41 @@ const LoginPage: React.FC = () => {
   const setupRef = useRef<HTMLInputElement>(null);
   const autoSubmitted = useRef(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.totpStatus();
-        setEnabled(res.enabled);
-      } catch (err: any) {
-        setError(err.message || 'Could not reach the server.');
-      } finally {
-        setChecking(false);
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetEmail = email.trim().toLowerCase();
+    if (!targetEmail) return;
+    setError('');
+    setChecking(true);
+    try {
+      const res = await api.totpStatus(targetEmail);
+      if (res.enabled) {
+        setEnabled(true);
+        setEmailEntered(true);
+      } else {
+        const setupRes = await api.totpSetup(targetEmail);
+        setSetup(setupRes);
+        setEnabled(false);
+        setEmailEntered(true);
       }
-    })();
-  }, []);
+    } catch (err: any) {
+      setError(err.message || 'No admin account found.');
+      setEmailEntered(false);
+      setEnabled(false);
+      setSetup(null);
+    } finally {
+      setChecking(false);
+    }
+  };
 
-  useEffect(() => {
-    if (checking || enabled || setup) return;
-    (async () => {
-      try {
-        const res = await api.totpSetup();
-        setSetup(res);
-        setError('');
-      } catch (err: any) {
-        setError(err.message || 'Failed to start TOTP setup');
-      }
-    })();
-  }, [checking, enabled, setup]);
+  const handleBack = () => {
+    setEmailEntered(false);
+    setEnabled(false);
+    setSetup(null);
+    setSetupCode('');
+    setCode('');
+    setError('');
+  };
 
   useEffect(() => {
     if (setup && !recoveryCodes.length) {
@@ -74,13 +90,20 @@ const LoginPage: React.FC = () => {
     }
   }, [setup, recoveryCodes]);
 
+  useEffect(() => {
+    if (enabled) {
+      const t = setTimeout(() => codeRef.current?.focus(), 60);
+      return () => clearTimeout(t);
+    }
+  }, [enabled]);
+
   const submitLogin = useCallback(
     async (value: string) => {
       if (!value || busy) return;
       setError('');
       setBusy(true);
       try {
-        await loginWithTotp(value);
+        await loginWithTotp(value, email);
       } catch (err: any) {
         setError(err.message || 'Invalid code');
         setCode('');
@@ -91,16 +114,16 @@ const LoginPage: React.FC = () => {
         setBusy(false);
       }
     },
-    [busy, loginWithTotp]
+    [busy, loginWithTotp, email]
   );
 
   useEffect(() => {
-    if (useRecovery || checking) return;
+    if (useRecovery || checking || !emailEntered) return;
     if (code.length === 6 && !autoSubmitted.current && !busy) {
       autoSubmitted.current = true;
       submitLogin(code);
     }
-  }, [code, useRecovery, checking, busy, submitLogin]);
+  }, [code, useRecovery, checking, emailEntered, busy, submitLogin]);
 
   const handleCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -124,7 +147,7 @@ const LoginPage: React.FC = () => {
     setError('');
     setBusy(true);
     try {
-      const res = await completeSetup(value);
+      const res = await completeSetup(value, email);
       setSetupUser(res.user);
       setRecoveryCodes(res.recoveryCodes);
       setCopied(false);
@@ -147,8 +170,6 @@ const LoginPage: React.FC = () => {
   };
 
   const recoveryReady = code.replace(/[^A-Z0-9]/g, '').length === 12;
-  const inputBase =
-    'w-full rounded-xl border border-white/10 bg-slate-900/70 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 min-h-11';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden font-sans">
@@ -213,6 +234,48 @@ const LoginPage: React.FC = () => {
                 </button>
               </div>
             </div>
+          ) : !emailEntered ? (
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              <div className="text-center">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <h2 className="text-base font-bold text-white">Sign In with Authenticator</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Enter your admin email address to proceed.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  autoComplete="email"
+                  className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy || !email.trim()}
+                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90 disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Continue
+              </button>
+            </form>
           ) : !enabled ? (
             <div className="space-y-4">
               <div className="text-center">
@@ -283,6 +346,14 @@ const LoginPage: React.FC = () => {
                   {error}
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={handleBack}
+                className="mt-4 flex items-center justify-center gap-1 text-xs font-semibold text-slate-400 hover:text-white mx-auto"
+              >
+                <ArrowLeft className="h-3 w-3" /> Change email address
+              </button>
             </div>
           ) : (
             <form onSubmit={handleLoginForm} className="space-y-4">
@@ -296,7 +367,7 @@ const LoginPage: React.FC = () => {
                 <p className="mt-1 text-xs text-slate-400">
                   {useRecovery
                     ? 'Use one of the single-use codes you saved when enabling TOTP.'
-                    : 'Enter the 6-digit code from your Google Authenticator app.'}
+                    : `Enter the 6-digit code for ${email} from your Google Authenticator app.`}
                 </p>
               </div>
 
@@ -328,20 +399,31 @@ const LoginPage: React.FC = () => {
                 {useRecovery ? 'Verify Recovery Code' : 'Verify & Sign In'}
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setUseRecovery((prev) => !prev);
-                  setCode('');
-                  setError('');
-                  autoSubmitted.current = false;
-                  setTimeout(() => codeRef.current?.focus(), 50);
-                }}
-                className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
-              >
-                <KeySquare className="h-3.5 w-3.5" />
-                {useRecovery ? 'Use authenticator code instead' : 'Lost your device? Use a recovery code'}
-              </button>
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseRecovery((prev) => !prev);
+                    setCode('');
+                    setError('');
+                    autoSubmitted.current = false;
+                    setTimeout(() => codeRef.current?.focus(), 50);
+                  }}
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  <KeySquare className="h-3.5 w-3.5" />
+                  {useRecovery ? 'Use authenticator code instead' : 'Lost your device? Use a recovery code'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Change email address
+                </button>
+              </div>
             </form>
           )}
         </div>

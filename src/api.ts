@@ -65,15 +65,15 @@ export const api = {
   deleteCoupon: (code: string) =>
     request<{ success: boolean }>(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
-  totpStatus: () => request<{ enabled: boolean }>('/auth/totp-status'),
-  totpSetup: () => request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST' }),
-  totpConfirm: (code: string) =>
+  totpStatus: (email?: string) => request<{ enabled: boolean }>(`/auth/totp-status${email ? `?email=${encodeURIComponent(email)}` : ''}`),
+  totpSetup: (email?: string) => request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST', body: JSON.stringify({ email }) }),
+  totpConfirm: (code: string, email?: string) =>
     request<{ success: boolean; user: AuthUser; recoveryCodes: string[] }>('/auth/totp-confirm', {
       method: 'POST',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, email }),
     }),
-  totpLogin: (code: string) =>
-    request<LoginResponse>('/auth/totp-login', { method: 'POST', body: JSON.stringify({ code }) }),
+  totpLogin: (code: string, email?: string) =>
+    request<LoginResponse>('/auth/totp-login', { method: 'POST', body: JSON.stringify({ code, email }) }),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 };
 

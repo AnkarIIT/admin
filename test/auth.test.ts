@@ -56,7 +56,11 @@ describe("auth", () => {
   });
 
   it("rejects login when TOTP is not enabled", async () => {
-    const res = await request(app).post("/api/auth/totp-login").send({ code: totpCode() });
+    await prisma.admins.updateMany({
+      where: { email: TOTP_TEST_EMAIL },
+      data: { totp_enabled: false },
+    });
+    const res = await request(app).post("/api/auth/totp-login").send({ email: TOTP_TEST_EMAIL, code: totpCode() });
     expect(res.status).toBe(401);
   });
 
