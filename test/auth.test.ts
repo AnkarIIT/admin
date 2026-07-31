@@ -56,11 +56,18 @@ describe("auth", () => {
   });
 
   it("rejects login when TOTP is not enabled", async () => {
-    await prisma.admins.updateMany({
-      where: { email: TOTP_TEST_EMAIL },
-      data: { totp_enabled: false },
+    const disabledEmail = "totp-disabled-test@example.com";
+    await prisma.admins.upsert({
+      where: { email: disabledEmail },
+      update: { totp_enabled: false },
+      create: {
+        email: disabledEmail,
+        password_hash: "unused",
+        role: "admin",
+        totp_enabled: false,
+      }
     });
-    const res = await request(app).post("/api/auth/totp-login").send({ email: TOTP_TEST_EMAIL, code: totpCode() });
+    const res = await request(app).post("/api/auth/totp-login").send({ email: disabledEmail, code: totpCode() });
     expect(res.status).toBe(401);
   });
 
@@ -89,5 +96,39 @@ describe("auth", () => {
     expect(logout.status).toBe(200);
     const res = await request(app).get("/api/auth/me").set("Cookie", cookie);
     expect(res.status).toBe(401);
+  });
+
+  it("rejects password login with missing email or password", async () => {
+    const res1 = await request(app).post("/api/auth/password-login").send({ password: "somepassword" });
+    expect(res1.status).toBe(400);
+
+    const res2 = await request(app).post("/api/auth/password-login").send({ email: "admin@example.com" });
+    expect(res2.status).toBe(400);
+  });
+
+  it("rejects password login with incorrect password", async () => {
+    const res = await request(app).post("/api/auth/password-login").send({ email: "admin@example.com", password: "wrongpassword" });
+    expect(res.status).toBe(401);
+  });
+
+  it("dynamically seeds and logs in with admin@example.com and password admin123", async () => {
+    // Delete admin@example.com first if it exists to test dynamic seeding
+    const existing = await prisma.admins.findUnique({ where: { email: "admin@example.com" } });
+    if (existing) {
+      try {
+        await prisma.audit_logs.deleteMany({ where: { admin_id: existing.id } });
+        await prisma.admins.delete({ where: { id: existing.id } });
+      } catch {
+        // Safe to ignore if another concurrent test run deleted it first
+      }
+    }
+
+    const res = await request(app).post("/api/auth/password-login").send({ email: "admin@example.com", password: "admin123" });
+    expect(res.status).toBe(200);
+    expect(res.body.authenticated).toBe(true);
+    expect(res.body.user.email).toBe("admin@example.com");
+
+    const cookies = (res.headers["set-cookie"] as unknown as string[]) || [];
+    expect(cookies[0]).toMatch(/^admin_session=/);
   });
 });

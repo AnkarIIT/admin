@@ -277,3 +277,11 @@ export function totpKeyUri(email: string, secret: string): string {
 export async function totpQrDataUrl(uri: string): Promise<string> {
   return qrcode.toDataURL(uri);
 }
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+export function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, 10);
+}

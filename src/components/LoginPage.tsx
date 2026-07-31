@@ -21,7 +21,7 @@ function formatRecoveryInput(raw: string): string {
 }
 
 const LoginPage: React.FC = () => {
-  const { loginWithTotp, completeSetup, enterAdmin, addToast } = useAdmin();
+  const { loginWithTotp, loginWithPassword, completeSetup, enterAdmin, addToast } = useAdmin();
 
   // Email input state
   const [email, setEmail] = useState('');
@@ -29,6 +29,10 @@ const LoginPage: React.FC = () => {
 
   const [checking, setChecking] = useState(false);
   const [enabled, setEnabled] = useState(false);
+
+  // Password input state
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [password, setPassword] = useState('');
 
   // Login mode
   const [code, setCode] = useState('');
@@ -80,7 +84,23 @@ const LoginPage: React.FC = () => {
     setSetup(null);
     setSetupCode('');
     setCode('');
+    setPassword('');
     setError('');
+    setShowPasswordInput(false);
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim() || busy) return;
+    setError('');
+    setBusy(true);
+    try {
+      await loginWithPassword(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -276,6 +296,83 @@ const LoginPage: React.FC = () => {
                 Continue
               </button>
             </form>
+          ) : showPasswordInput ? (
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="text-center">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <h2 className="text-base font-bold text-white">Sign In with Password</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Enter your admin credentials to proceed.
+                </p>
+              </div>
+
+              {/* Card Preview of the email */}
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-left">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 shrink-0">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Signing in as</p>
+                    <p className="text-xs font-semibold text-white truncate">{email}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white shrink-0"
+                >
+                  Change
+                </button>
+              </div>
+
+              {/* Password Bar */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy || !password.trim()}
+                className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90 disabled:opacity-60"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Sign In with Password
+              </button>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordInput(false);
+                    setError('');
+                  }}
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back to Authenticator
+                </button>
+              </div>
+            </form>
           ) : !enabled ? (
             <div className="space-y-4">
               <div className="text-center">
@@ -349,7 +446,10 @@ const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={handleBack}
+                onClick={() => {
+                  setShowPasswordInput(true);
+                  setError('');
+                }}
                 className="mt-4 flex items-center justify-center gap-1 text-xs font-semibold text-slate-400 hover:text-white mx-auto"
               >
                 <ArrowLeft className="h-3 w-3" /> Login with email
@@ -417,7 +517,10 @@ const LoginPage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={handleBack}
+                  onClick={() => {
+                    setShowPasswordInput(true);
+                    setError('');
+                  }}
                   className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />

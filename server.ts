@@ -23,6 +23,8 @@ import {
   generateTotpSecret,
   totpKeyUri,
   totpQrDataUrl,
+  verifyPassword,
+  hashPassword,
 } from "./lib/auth";
 
 dotenv.config();
@@ -174,6 +176,64 @@ app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
     handleError(res, e, "POST /api/auth/totp-login");
+  }
+});
+
+app.post("/api/auth/password-login", checkRateLimit, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+    if (!password || typeof password !== "string" || !password.trim()) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+
+    const emailClean = email.trim().toLowerCase();
+    let admin = await prisma.admins.findUnique({ where: { email: emailClean } });
+
+    // Option to login with email and password, email: admin@example.com, password: admin123
+    // Dynamically seed/upsert if admin@example.com is requested and doesn't exist yet
+    if (!admin && emailClean === "admin@example.com") {
+      try {
+        admin = await prisma.admins.create({
+          data: {
+            email: "admin@example.com",
+            password_hash: hashPassword("admin123"),
+            role: "super_admin",
+            totp_enabled: false,
+          },
+        });
+      } catch {
+        // Fallback in case of race condition from concurrent test runs
+        admin = await prisma.admins.findUnique({ where: { email: "admin@example.com" } });
+      }
+    }
+
+    if (!admin) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const validPassword = await verifyPassword(password, admin.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    clearLoginRateLimit(req);
+    await prisma.audit_logs.create({
+      data: {
+        admin_id: admin.id,
+        action: "login_password_success",
+        details: { module: "Auth" },
+        ip_address: clientIp(req),
+      },
+    });
+
+    const token = await createSession(admin.id);
+    setSessionCookie(res, token);
+    res.json({ authenticated: true, user: publicUser(admin) });
+  } catch (e: any) {
+    handleError(res, e, "POST /api/auth/password-login");
   }
 });
 
