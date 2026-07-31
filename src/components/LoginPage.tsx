@@ -352,7 +352,7 @@ const LoginPage: React.FC = () => {
                 onClick={handleBack}
                 className="mt-4 flex items-center justify-center gap-1 text-xs font-semibold text-slate-400 hover:text-white mx-auto"
               >
-                <ArrowLeft className="h-3 w-3" /> Change email address
+                <ArrowLeft className="h-3 w-3" /> Login with email
               </button>
             </div>
           ) : (
@@ -421,7 +421,7 @@ const LoginPage: React.FC = () => {
                   className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
-                  Change email address
+                  Login with email
                 </button>
               </div>
             </form>
