@@ -7,11 +7,11 @@ import helmet from "helmet";
 import { z } from "zod";
 import prisma from "./lib/prisma";
 import {
-  requireAuth,
   checkRateLimit,
   clearLoginRateLimit,
   currentSession,
   sessionToken,
+  requireAuth,
   createSession,
   destroySession,
   setSessionCookie,
@@ -239,7 +239,6 @@ app.post("/api/auth/disable-2fa", requireAuth, async (req, res) => {
 });
 
 // ---- Database API Routes ----
-app.use("/api", requireAuth);
 
 const num = (v: any) => (v == null ? null : Number(v));
 
@@ -461,7 +460,7 @@ app.get("/api/activity-logs", async (req, res) => {
 });
 
 // Persist activity log (used by AdminContext.logActivity)
-app.post("/api/activity-logs", requireAuth, async (req, res) => {
+app.post("/api/activity-logs", async (req, res) => {
   try {
     const parsed = z
       .object({

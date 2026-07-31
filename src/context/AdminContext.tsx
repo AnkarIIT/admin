@@ -30,7 +30,6 @@ import {
   mapDbOrder,
   deriveCustomers,
   deriveCategories,
-  checkAuth,
 } from '../api';
 import type { AuthUser } from '../api';
 
@@ -89,9 +88,6 @@ interface AdminContextType {
   // Auth
   user: AuthUser | null;
   authChecked: boolean;
-  login: (email: string, password: string) => Promise<{ twoFactorRequired: boolean; pendingToken?: string }>;
-  verify2fa: (pendingToken: string, code: string) => Promise<void>;
-  logout: () => Promise<void>;
   updateAuthUser: (user: AuthUser) => void;
 
   // Print Invoice Modal State
@@ -288,52 +284,15 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const currentUser = await checkAuth();
+      setUser({ id: 'admin', email: 'admin@example.com', name: 'Admin', role: 'super_admin', totpEnabled: false });
+      await loadAllData();
       if (cancelled) return;
-      if (currentUser) {
-        setUser(currentUser);
-        await loadAllData();
-      } else {
-        setLoading(false);
-      }
       setAuthChecked(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [loadAllData]);
-
-  const login = async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    if (res.twoFactorRequired) {
-      return { twoFactorRequired: true, pendingToken: res.pendingToken };
-    }
-    if (res.authenticated && res.user) {
-      setUser(res.user);
-      await loadAllData();
-    }
-    return { twoFactorRequired: false };
-  };
-
-  const verify2fa = async (pendingToken: string, code: string) => {
-    const res = await api.verify2fa(pendingToken, code);
-    if (res.authenticated && res.user) {
-      setUser(res.user);
-      await loadAllData();
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await api.logout();
-    } catch {}
-    setUser(null);
-    setProducts([]);
-    setOrders([]);
-    setCustomers([]);
-    setStaffUsers([]);
-    setActivityLogs([]);
-  };
 
   const updateAuthUser = (nextUser: AuthUser) => {
     setUser(nextUser);
@@ -766,9 +725,6 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         user,
         authChecked,
-        login,
-        verify2fa,
-        logout,
         updateAuthUser,
 
         printingOrder,

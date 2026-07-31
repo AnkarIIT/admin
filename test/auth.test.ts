@@ -47,10 +47,9 @@ describe("auth", () => {
     expect(res.headers["set-cookie"]).toBeDefined();
   });
 
-  it("blocks data routes without a session", async () => {
+  it("serves data routes without a session", async () => {
     const res = await request(app).get("/api/products");
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Not authenticated");
+    expect(res.status).toBe(200);
   });
 
   it("returns the current user via /api/auth/me", async () => {

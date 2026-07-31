@@ -82,17 +82,6 @@ export const api = {
     request<{ success: boolean; user: AuthUser }>('/auth/disable-2fa', { method: 'POST', body: JSON.stringify({ code }) }),
 };
 
-export async function checkAuth(): Promise<AuthUser | null> {
-  try {
-    const res = await fetch('/api/auth/me', { headers: { 'Content-Type': 'application/json' } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.user || null;
-  } catch {
-    return null;
-  }
-}
-
 export function mapDbProduct(p: Record<string, any>): Product {
   const price = Number(p.base_price) || 0;
   const compare = p.discounted_price != null ? Number(p.discounted_price) : undefined;
