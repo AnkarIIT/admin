@@ -10,6 +10,7 @@ import {
   Calendar,
   Filter,
   Zap,
+  Clock,
   ArrowUpRight,
   ArrowDownRight,
   FileSpreadsheet,
