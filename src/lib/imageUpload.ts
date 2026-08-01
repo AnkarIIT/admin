@@ -1,4 +1,4 @@
-export function fileToDataUrl(file: File, maxBytes = 2 * 1024 * 1024, allowAny = false): Promise<string> {
+export function fileToDataUrl(file: File, maxBytes = 10 * 1024 * 1024, allowAny = false): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!allowAny && !file.type.startsWith('image/')) {
       reject(new Error('Please choose an image file'));

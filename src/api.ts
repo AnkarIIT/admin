@@ -70,6 +70,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateStaff: (id: string, data: Record<string, any>) =>
+    request<StaffUser>(`/staff/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteStaff: (id: string) => request<{ success: boolean }>(`/staff/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getActivityLogs: () => request<ActivityLog[]>('/activity-logs'),
   logActivity: (data: { action: string; module: string }) =>
     request<{ success: boolean }>('/activity-logs', { method: 'POST', body: JSON.stringify(data) }),
@@ -86,7 +89,8 @@ export const api = {
     request<{ success: boolean }>(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
   totpStatus: (email?: string) => request<{ enabled: boolean }>(`/auth/totp-status${email ? `?email=${encodeURIComponent(email)}` : ''}`),
-  totpSetup: (email?: string) => request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST', body: JSON.stringify({ email }) }),
+  totpSetup: (email?: string, force?: boolean) =>
+    request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST', body: JSON.stringify({ email, force }) }),
   totpConfirm: (code: string, email?: string) =>
     request<{ success: boolean; user: AuthUser; recoveryCodes: string[] }>('/auth/totp-confirm', {
       method: 'POST',
@@ -123,10 +127,10 @@ export function mapDbProduct(p: Record<string, any>): Product {
     compareAtPrice: p.discounted_price != null ? Number(p.discounted_price) : undefined,
     costPrice: p.cost_price != null ? Number(p.cost_price) : price,
     stock: typeof p.stock === 'number' ? p.stock : 0,
-    lowStockThreshold: typeof p.lowStockThreshold === 'number' ? p.lowStockThreshold : 0,
+    lowStockThreshold: typeof p.low_stock_threshold === 'number' ? p.low_stock_threshold : 0,
     status: p.status || 'Active',
     images: Array.isArray(p.images) ? p.images : [],
-    videoUrl: p.videoUrl || '',
+    videoUrl: p.video_url || '',
     description: p.description || '',
     variants: Array.isArray(p.variants) ? p.variants : [],
     seo: {

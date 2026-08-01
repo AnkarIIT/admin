@@ -227,10 +227,12 @@ model UserSession {
 }
 
 model admins {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String            @unique @db.VarChar(255)
-  password_hash String
-  role          String            @default("editor") @db.VarChar(50)
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String?
+  email              String            @unique @db.VarChar(255)
+  password_hash      String
+  role               String            @default("editor") @db.VarChar(50)
+  is_active          Boolean           @default(true)
   totp_secret         String?   @db.Text
   totp_enabled        Boolean   @default(false)
   recovery_codes_hash String?   @db.Text

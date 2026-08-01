@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Mail,
   ArrowLeft,
+  RefreshCw,
   Sun,
   Moon,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ const LoginPage: React.FC = () => {
   const [setupUser, setSetupUser] = useState<any>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const codeRef = useRef<HTMLInputElement>(null);
   const setupRef = useRef<HTMLInputElement>(null);
@@ -169,6 +171,26 @@ const LoginPage: React.FC = () => {
       addToast({ type: 'success', title: 'TOTP Enabled', message: 'Two-factor login is now active.' });
     } catch (err: any) {
       setError(err.message || 'Invalid code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    if (busy) return;
+    setError('');
+    setBusy(true);
+    try {
+      const setupRes = await api.totpSetup('', true);
+      setSetup(setupRes);
+      setEnabled(false);
+      setCode('');
+      setUseRecovery(false);
+      setReconnecting(true);
+      setSetupUser(null);
+      setRecoveryCodes([]);
+    } catch (err: any) {
+      setError(err.message || 'Failed to start reconnect');
     } finally {
       setBusy(false);
     }
@@ -359,9 +381,13 @@ const LoginPage: React.FC = () => {
                 <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
                   <Smartphone className="h-6 w-6" />
                 </div>
-                <h2 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Set up your authenticator</h2>
+                <h2 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                  {reconnecting ? 'Reconnect your authenticator' : 'Set up your authenticator'}
+                </h2>
                 <p className={`mt-1 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  First time here? Scan the QR code with Google Authenticator to enable TOTP login for your admin.
+                  {reconnecting
+                    ? 'Scan the new QR code with Google Authenticator to re-enable TOTP login. Your old codes will stop working.'
+                    : 'First time here? Scan the QR code with Google Authenticator to enable TOTP login for your admin.'}
                 </p>
               </div>
 
@@ -414,7 +440,7 @@ const LoginPage: React.FC = () => {
                       className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:opacity-90 disabled:opacity-60"
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                      Enable TOTP Login
+                      {reconnecting ? 'Reconnect TOTP Login' : 'Enable TOTP Login'}
                     </button>
                   </form>
                 </>
@@ -512,7 +538,18 @@ const LoginPage: React.FC = () => {
                   }}
                   className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
                 >
-                  🔑 Login with email
+                  <Mail className="h-3.5 w-3.5" />
+                  Login with email
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReconnect}
+                  disabled={busy}
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-rose-500 dark:text-rose-300 hover:text-rose-600 dark:hover:text-rose-200 disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+                  Reconnect authenticator
                 </button>
               </div>
             </form>

@@ -3,7 +3,6 @@ import path from "path";
 import { pathToFileURL } from "url";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import crypto from "crypto";
 import helmet from "helmet";
 import { z } from "zod";
 import prisma from "./lib/prisma";
@@ -63,7 +62,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "30mb" }));
+app.use(express.json({ limit: "180mb" }));
 
 const handleError = (res: express.Response, e: any, context: string) => {
   console.error(`[${context}]`, e?.message || e);
@@ -129,11 +128,15 @@ app.post("/api/auth/totp-setup", async (req, res) => {
   try {
     const admin = await resolveAdmin((req.body || {}).email);
     if (!admin) return res.status(404).json({ error: "No admin account found" });
-    if (admin.totp_enabled && admin.totp_secret) {
+    const force = !!(req.body || {}).force;
+    if (admin.totp_enabled && admin.totp_secret && !force) {
       return res.status(409).json({ error: "TOTP is already enabled" });
     }
     const secret = generateTotpSecret();
-    await prisma.admins.update({ where: { id: admin.id }, data: { totp_secret: secret, recovery_codes_hash: null } });
+    await prisma.admins.update({
+      where: { id: admin.id },
+      data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
+    });
     const uri = totpKeyUri(admin.email, secret);
     const qr = await totpQrDataUrl(uri);
     res.json({ secret, uri, qr });
@@ -204,13 +207,6 @@ app.post("/api/auth/password-login", checkRateLimit, async (req, res) => {
 
     if (!admin || !(await verifyPassword(password, admin.password_hash))) {
       return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    // Two-factor is enforced when enabled: password alone must never grant a session.
-    if (admin.totp_enabled) {
-      return res.status(403).json({
-        error: "Two-factor authentication is enabled. Sign in with your authenticator app instead.",
-      });
     }
 
     clearLoginRateLimit(req);
@@ -533,11 +529,11 @@ app.get("/api/staff", async (req, res) => {
     res.json(
       admins.map((a) => ({
         id: a.id,
-        name: a.email.split("@")[0],
+        name: a.name || a.email.split("@")[0],
         email: a.email,
         roleId: a.role,
         roleName: a.role,
-        status: "Active",
+        status: a.is_active === false ? "Inactive" : "Active",
         lastLogin: a.updated_at ? a.updated_at.toISOString() : "",
       }))
     );
@@ -602,6 +598,105 @@ app.post("/api/staff", async (req, res) => {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
     if (e.code === "P2002") return res.status(409).json({ error: "A staff member with this email already exists." });
     handleError(res, e, "POST /api/staff");
+  }
+});
+
+// Update a staff member (name, email, role, password, active status, TOTP reset)
+app.patch("/api/staff/:id", async (req, res) => {
+  try {
+    if (!(await requireSuperAdmin(req, res))) return;
+    const parsed = z
+      .object({
+        name: z.string().trim().max(100).optional(),
+        email: z.string().trim().email().max(255).optional(),
+        role: z.string().trim().min(1).max(50).optional(),
+        password: z.string().min(6).max(128).optional(),
+        is_active: z.boolean().optional(),
+        reset_totp: z.boolean().optional(),
+      })
+      .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" })
+      .parse(req.body);
+
+    const target = await prisma.admins.findUnique({ where: { id: req.params.id } });
+    if (!target) return res.status(404).json({ error: "Staff member not found" });
+
+    if (parsed.role != null) {
+      const self = (req as any).userId === target.id;
+      const demotingSuper = roleKey(target.role) === "super_admin" && roleKey(parsed.role) !== "super_admin";
+      if (self && demotingSuper) {
+        return res.status(400).json({ error: "You cannot change your own super admin role." });
+      }
+      if (demotingSuper) {
+        const superAdmins = await prisma.admins.count({ where: { role: { contains: "super_admin" } } });
+        if (superAdmins <= 1) return res.status(400).json({ error: "At least one super admin is required." });
+      }
+    }
+
+    const data: any = {};
+    if (parsed.name != null) data.name = parsed.name;
+    if (parsed.email != null) {
+      const email = parsed.email.toLowerCase();
+      const dup = await prisma.admins.findUnique({ where: { email } });
+      if (dup && dup.id !== target.id) {
+        return res.status(409).json({ error: "A staff member with this email already exists." });
+      }
+      data.email = email;
+    }
+    if (parsed.role != null) data.role = parsed.role;
+    if (parsed.password != null) data.password_hash = hashPassword(parsed.password);
+    if (parsed.is_active != null) data.is_active = parsed.is_active;
+    if (parsed.reset_totp) {
+      data.totp_secret = null;
+      data.totp_enabled = false;
+      data.recovery_codes_hash = null;
+    }
+    data.updated_at = new Date();
+
+    const admin = await prisma.admins.update({ where: { id: target.id }, data });
+
+    await prisma.audit_logs.create({
+      data: { admin_id: (req as any).userId ?? null, action: "staff_updated", details: { module: "Staff", email: admin.email }, ip_address: clientIp(req) },
+    });
+
+    res.json({
+      id: admin.id,
+      name: admin.name || admin.email.split("@")[0],
+      email: admin.email,
+      roleId: admin.role,
+      roleName: admin.role,
+      status: admin.is_active === false ? "Inactive" : "Active",
+      lastLogin: admin.updated_at ? admin.updated_at.toISOString() : "",
+    });
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
+    if (e.code === "P2025") return res.status(404).json({ error: "Staff member not found" });
+    handleError(res, e, "PATCH /api/staff/:id");
+  }
+});
+
+// Delete a staff member (admin account)
+app.delete("/api/staff/:id", async (req, res) => {
+  try {
+    if (!(await requireSuperAdmin(req, res))) return;
+    const target = await prisma.admins.findUnique({ where: { id: req.params.id } });
+    if (!target) return res.status(404).json({ error: "Staff member not found" });
+    if ((req as any).userId === target.id) {
+      return res.status(400).json({ error: "You cannot delete your own account." });
+    }
+    if (roleKey(target.role) === "super_admin") {
+      const superAdmins = await prisma.admins.count({ where: { role: { contains: "super_admin" } } });
+      if (superAdmins <= 1) return res.status(400).json({ error: "Cannot delete the last super admin." });
+    }
+
+    await prisma.audit_logs.deleteMany({ where: { admin_id: target.id } });
+    await prisma.adminSession.deleteMany({ where: { adminId: target.id } });
+    await prisma.pendingLogin.deleteMany({ where: { adminId: target.id } });
+    await prisma.admins.delete({ where: { id: target.id } });
+
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e.code === "P2025") return res.status(404).json({ error: "Staff member not found" });
+    handleError(res, e, "DELETE /api/staff/:id");
   }
 });
 
@@ -699,7 +794,7 @@ const couponSchema = z.object({
   value: z.number().positive().max(1_000_000),
   minOrderValue: z.number().min(0).max(100_000_000).default(0),
   expiryDate: z.string().trim().max(10).optional(),
-  usageLimit: z.number().int().positive().default(100),
+  usageLimit: z.number().int().min(0).default(0),
   status: z.enum(["Active", "Inactive"]).default("Active"),
 });
 
@@ -710,7 +805,7 @@ const couponPatchSchema = z
     value: z.number().positive().max(1_000_000).optional(),
     minOrderValue: z.number().min(0).max(100_000_000).optional(),
     expiryDate: z.string().trim().max(10).nullable().optional(),
-    usageLimit: z.number().int().positive().nullable().optional(),
+    usageLimit: z.number().int().min(0).nullable().optional(),
     status: z.enum(["Active", "Inactive"]).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" });

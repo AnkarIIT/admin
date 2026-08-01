@@ -168,6 +168,11 @@ interface AdminContextType {
     user: Omit<StaffUser, 'id'> & { password?: string }
   ) => Promise<{ email: string; password: string } | undefined>;
   updateStaffRole: (userId: string, roleName: string) => void;
+  updateStaffUser: (
+    userId: string,
+    data: { name?: string; email?: string; role?: string; password?: string; is_active?: boolean; reset_totp?: boolean }
+  ) => Promise<boolean>;
+  deleteStaffUser: (userId: string) => Promise<boolean>;
   updateStoreSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   logActivity: (action: string, module: string) => void;
@@ -182,8 +187,14 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('OMNI_DARK_MODE');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('OMNI_DARK_MODE');
+      if (!saved) return false;
+      const parsed = JSON.parse(saved);
+      return typeof parsed === 'boolean' ? parsed : false;
+    } catch {
+      return false;
+    }
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -222,7 +233,9 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync Dark Mode class on <html>
   useEffect(() => {
-    localStorage.setItem('OMNI_DARK_MODE', JSON.stringify(darkMode));
+    try {
+      localStorage.setItem('OMNI_DARK_MODE', JSON.stringify(darkMode));
+    } catch {}
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -815,11 +828,63 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const updateStaffRole = (userId: string, roleName: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, roleName } : u))
-    );
-    addToast({ type: 'info', title: 'User Role Changed', message: `Permissions updated.` });
+  const updateStaffRole = async (userId: string, roleName: string) => {
+    try {
+      const updated = await api.updateStaff(userId, { role: roleName });
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? { ...u, roleId: updated.roleId, roleName: updated.roleName, status: updated.status as StaffUser['status'] }
+            : u
+        )
+      );
+      logActivity(`Updated role of "${updated.email}" to ${roleName}`, 'Staff');
+      addToast({ type: 'info', title: 'User Role Changed', message: 'Permissions updated.' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Update Failed', message: e.message });
+    }
+  };
+
+  const updateStaffUser = async (
+    userId: string,
+    data: { name?: string; email?: string; role?: string; password?: string; is_active?: boolean; reset_totp?: boolean }
+  ) => {
+    try {
+      const updated = await api.updateStaff(userId, data);
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                name: updated.name,
+                email: updated.email,
+                roleId: updated.roleId,
+                roleName: updated.roleName,
+                status: updated.status as StaffUser['status'],
+              }
+            : u
+        )
+      );
+      logActivity(`Updated staff member "${updated.email}"`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Updated', message: `Saved changes for ${updated.email}.` });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Update Failed', message: e.message });
+      return false;
+    }
+  };
+
+  const deleteStaffUser = async (userId: string) => {
+    try {
+      await api.deleteStaff(userId);
+      setStaffUsers((prev) => prev.filter((u) => u.id !== userId));
+      logActivity(`Removed staff member "${userId}"`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Removed', message: 'Staff member deleted.' });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Delete Failed', message: e.message });
+      return false;
+    }
   };
 
   const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
@@ -942,6 +1007,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateStaffUserRole,
         addStaffUser,
         updateStaffRole,
+        updateStaffUser,
+        deleteStaffUser,
         updateStoreSettings,
         updateSettings,
         logActivity,

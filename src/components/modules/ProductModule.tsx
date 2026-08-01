@@ -176,18 +176,20 @@ export const ProductModule: React.FC = () => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     try {
-      const current = formData.images.filter(Boolean);
-      const remaining = MAX_IMAGES - current.length;
-      if (remaining <= 0) {
-        addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
-        return;
-      }
-      const toAdd = files.slice(0, remaining);
-      const dataUrls = await Promise.all(toAdd.map((f) => fileToDataUrl(f)));
-      setFormData({ ...formData, images: [...current, ...dataUrls] });
-      if (files.length > remaining) {
-        addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
-      }
+      const dataUrls = await Promise.all(files.slice(0, MAX_IMAGES).map((f) => fileToDataUrl(f)));
+      setFormData((prev) => {
+        const current = prev.images.filter(Boolean);
+        const remaining = MAX_IMAGES - current.length;
+        if (remaining <= 0) {
+          addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
+          return prev;
+        }
+        const add = dataUrls.slice(0, remaining);
+        if (files.length > remaining) {
+          addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
+        }
+        return { ...prev, images: [...current, ...add] };
+      });
     } catch (err: any) {
       addToast({ type: 'error', title: 'Upload failed', message: err.message });
     }
@@ -195,15 +197,17 @@ export const ProductModule: React.FC = () => {
   };
 
   const removeProductImage = (index: number) => {
-    setFormData({ ...formData, images: formData.images.filter((_, i) => i !== index) });
+    setFormData((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
   };
 
   const setMainImage = (index: number) => {
     if (index === 0) return;
-    const arr = [...formData.images];
-    const [img] = arr.splice(index, 1);
-    arr.unshift(img);
-    setFormData({ ...formData, images: arr });
+    setFormData((prev) => {
+      const arr = [...prev.images];
+      const [img] = arr.splice(index, 1);
+      arr.unshift(img);
+      return { ...prev, images: arr };
+    });
   };
 
   const handleProductVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,7 +218,7 @@ export const ProductModule: React.FC = () => {
         addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
         return;
       }
-      const dataUrl = await fileToDataUrl(file, 15 * 1024 * 1024, true);
+      const dataUrl = await fileToDataUrl(file, 30 * 1024 * 1024, true);
       setFormData({ ...formData, videoUrl: dataUrl });
       addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
     } catch (err: any) {
@@ -654,7 +658,7 @@ export const ProductModule: React.FC = () => {
                 <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
                   <Video className="h-6 w-6 text-slate-400" />
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {formData.videoUrl ? 'Video attached — click to replace' : 'Click to upload a product video (MP4, WebM, max 15MB)'}
+                    {formData.videoUrl ? 'Video attached — click to replace' : 'Click to upload a product video (MP4, WebM, max 30MB)'}
                   </span>
                   <input type="file" accept="video/*" className="hidden" onChange={handleProductVideoUpload} />
                 </label>
