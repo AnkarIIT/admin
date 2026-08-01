@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import app from "../server";
 import prisma from "../lib/prisma";
-import { loginCookie } from "./auth.test";
+import { loginCookie } from "./testHelpers";
 
 let cookie = "";
 let createdProductId = "";

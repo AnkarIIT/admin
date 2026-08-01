@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../server";
-import { TOTP_TEST_EMAIL, ensureTestAdmin } from "./auth.test";
+import { TOTP_TEST_EMAIL, ensureTestAdmin } from "./testHelpers";
 
 describe("rate limits", () => {
   it("returns 429 after too many failed TOTP login attempts", async () => {

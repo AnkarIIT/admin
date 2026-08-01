@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { Client } from "pg";
 import app from "../server";
-import { loginCookie } from "./auth.test";
+import { loginCookie } from "./testHelpers";
 
 const TEST_CODE = "TST" + Date.now().toString().slice(-6);
 
