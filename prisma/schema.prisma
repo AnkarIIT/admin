@@ -18,6 +18,19 @@ model Product {
   is_on_sale       Boolean  @default(false)
   is_new           Boolean  @default(false)
   is_bestseller    Boolean  @default(false)
+
+  images             Json?
+  subcategory        String?
+  sku                String?
+  cost_price         Decimal? @db.Decimal(10, 2)
+  stock              Int      @default(0)
+  low_stock_threshold Int     @default(0)
+  status             String   @default("Active")
+  video_url          String?
+  tags               Json?
+  variants           Json?
+  seo                Json?
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

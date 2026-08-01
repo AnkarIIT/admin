@@ -19,6 +19,7 @@ import {
   X,
   AlertCircle,
   FileSpreadsheet,
+  Star,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { Product, ProductVariant, SEOData } from '../../types';
@@ -44,11 +45,17 @@ export const ProductModule: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // New Category Form
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
+
+  // Product Images
+  const MAX_IMAGES = 6;
+  const [imageUrl, setImageUrl] = useState('');
+  const [tagInput, setTagInput] = useState('');
 
   // Product Form State
   const [formData, setFormData] = useState({
@@ -166,16 +173,82 @@ export const ProductModule: React.FC = () => {
     setIsAddModalOpen(false);
   };
 
-  const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setFormData({ ...formData, images: [dataUrl] });
+      const current = formData.images.filter(Boolean);
+      const remaining = MAX_IMAGES - current.length;
+      if (remaining <= 0) {
+        addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
+        return;
+      }
+      const toAdd = files.slice(0, remaining);
+      const dataUrls = await Promise.all(toAdd.map((f) => fileToDataUrl(f)));
+      setFormData({ ...formData, images: [...current, ...dataUrls] });
+      if (files.length > remaining) {
+        addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
+      }
     } catch (err: any) {
       addToast({ type: 'error', title: 'Upload failed', message: err.message });
     }
     e.target.value = '';
+  };
+
+  const removeProductImage = (index: number) => {
+    setFormData({ ...formData, images: formData.images.filter((_, i) => i !== index) });
+  };
+
+  const setMainImage = (index: number) => {
+    if (index === 0) return;
+    const arr = [...formData.images];
+    const [img] = arr.splice(index, 1);
+    arr.unshift(img);
+    setFormData({ ...formData, images: arr });
+  };
+
+  const addImageByUrl = () => {
+    const url = imageUrl.trim();
+    if (!url) return;
+    if (formData.images.length >= MAX_IMAGES) {
+      addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
+      return;
+    }
+    setFormData({ ...formData, images: [...formData.images, url] });
+    setImageUrl('');
+  };
+
+  const addTag = () => {
+    const t = tagInput.trim();
+    if (!t) return;
+    if (!formData.tags.includes(t)) {
+      setFormData({ ...formData, tags: [...formData.tags, t] });
+    }
+    setTagInput('');
+  };
+
+  const removeTag = (t: string) => {
+    setFormData({ ...formData, tags: formData.tags.filter((x) => x !== t) });
+  };
+
+  const updateVariantRow = (index: number, field: keyof ProductVariant, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      variants: prev.variants.map((v, i) => {
+        if (i !== index) return v;
+        return field === 'price' || field === 'stock'
+          ? { ...v, [field]: parseFloat(value) || 0 }
+          : { ...v, [field]: value };
+      }),
+    }));
+  };
+
+  const removeVariantRow = (index: number) => {
+    setFormData((prev) => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
+  };
+
+  const updateSeo = (field: keyof SEOData, value: string | string[]) => {
+    setFormData((prev) => ({ ...prev, seo: { ...prev.seo, [field]: value } }));
   };
 
   const handleAddCategorySubmit = (e: React.FormEvent) => {
@@ -371,7 +444,10 @@ export const ProductModule: React.FC = () => {
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => setPreviewProduct(p)}
+                        onClick={() => {
+                          setPreviewProduct(p);
+                          setPreviewImageIndex(0);
+                        }}
                         className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                         title="Quick Preview"
                       >
@@ -410,7 +486,7 @@ export const ProductModule: React.FC = () => {
       {/* Product Add / Edit Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 my-8">
+          <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Create New Product'}
@@ -442,7 +518,7 @@ export const ProductModule: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
                   <select
@@ -457,6 +533,19 @@ export const ProductModule: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Subcategory</label>
+                  <input
+                    type="text"
+                    value={formData.subcategory}
+                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                    placeholder="e.g. Wireless Headphones"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price ($)</label>
                   <input
                     type="number"
@@ -468,6 +557,30 @@ export const ProductModule: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Compare At Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.compareAtPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, compareAtPrice: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Cost Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.costPrice}
+                    onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Stock Units</label>
                   <input
                     type="number"
@@ -475,6 +588,30 @@ export const ProductModule: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Low Stock Threshold</label>
+                  <input
+                    type="number"
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as Product['status'] })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Archived">Archived</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                  </select>
                 </div>
               </div>
 
@@ -489,29 +626,249 @@ export const ProductModule: React.FC = () => {
                 />
               </div>
 
-              {/* Featured Image Upload */}
+              {/* Product Images (Multiple) */}
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Featured Image</label>
-                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
-                  {formData.images[0] ? (
-                    <img src={formData.images[0]} alt="Featured preview" className="h-32 w-32 rounded-xl object-cover" />
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 text-slate-400" />
-                      <span className="text-xs text-slate-500 dark:text-slate-400">Click to upload an image</span>
-                    </>
-                  )}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFeaturedImageUpload} />
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  Product Images
+                  <span
+                    className={`ml-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${
+                      formData.images.length >= MAX_IMAGES
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                    }`}
+                  >
+                    {formData.images.length}/{MAX_IMAGES}
+                  </span>
                 </label>
-                {formData.images[0] && (
+                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
+                  <Upload className="h-6 w-6 text-slate-400" />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Click to upload multiple images (up to {MAX_IMAGES}) — front, back, side angles
+                  </span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
+                </label>
+
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="...or paste an image URL to add another angle"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, images: [] })}
-                    className="mt-2 text-xs font-bold text-red-500 hover:underline cursor-pointer"
+                    onClick={addImageByUrl}
+                    className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 cursor-pointer"
                   >
-                    Remove image
+                    Add
                   </button>
+                </div>
+
+                {formData.images.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {formData.images.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className={`group relative overflow-hidden rounded-xl border-2 ${
+                          idx === 0 ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <img src={img} alt={`Product image ${idx + 1}`} className="h-20 w-full object-cover" />
+                        {idx === 0 && (
+                          <span className="absolute left-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-extrabold text-white">
+                            Main
+                          </span>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-around bg-slate-900/70 p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => setMainImage(idx)}
+                            disabled={idx === 0}
+                            title="Set as main image"
+                            className="p-0.5 text-white hover:text-indigo-300 disabled:opacity-30 cursor-pointer"
+                          >
+                            <Star className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeProductImage(idx)}
+                            title="Remove image"
+                            className="p-0.5 text-white hover:text-rose-300 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
+              </div>
+
+              {/* Video URL */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Video URL (optional)</label>
+                <input
+                  type="text"
+                  value={formData.videoUrl}
+                  onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Tags</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="Type a tag and press Enter"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={addTag}
+                    className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 cursor-pointer"
+                  >
+                    Add
+                  </button>
+                </div>
+                {formData.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {formData.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                      >
+                        {t}
+                        <button type="button" onClick={() => removeTag(t)} className="hover:text-rose-500 cursor-pointer">
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Variants */}
+              <div>
+                <label className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
+                  Variants
+                  <button
+                    type="button"
+                    onClick={addVariantRow}
+                    className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" /> Add Variant
+                  </button>
+                </label>
+                {formData.variants.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {formData.variants.map((v, idx) => (
+                      <div
+                        key={v.id}
+                        className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-center rounded-xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-800/50"
+                      >
+                        <input
+                          type="text"
+                          value={v.size || ''}
+                          onChange={(e) => updateVariantRow(idx, 'size', e.target.value)}
+                          placeholder="Size"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={v.color || ''}
+                          onChange={(e) => updateVariantRow(idx, 'color', e.target.value)}
+                          placeholder="Color"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={v.sku}
+                          onChange={(e) => updateVariantRow(idx, 'sku', e.target.value)}
+                          placeholder="SKU"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={v.price}
+                          onChange={(e) => updateVariantRow(idx, 'price', e.target.value)}
+                          placeholder="Price"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={v.stock}
+                            onChange={(e) => updateVariantRow(idx, 'stock', e.target.value)}
+                            placeholder="Stock"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeVariantRow(idx)}
+                            className="shrink-0 text-rose-500 hover:text-rose-700 cursor-pointer"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[11px] text-slate-400">No variants yet. Add sizes/colors if the product has variations.</p>
+                )}
+              </div>
+
+              {/* SEO Metadata */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">SEO Metadata</label>
+                <div className="mt-1 space-y-3">
+                  <input
+                    type="text"
+                    value={formData.seo.title}
+                    onChange={(e) => updateSeo('title', e.target.value)}
+                    placeholder="SEO Title (defaults to product name)"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.seo.slug}
+                    onChange={(e) => updateSeo('slug', e.target.value)}
+                    placeholder="URL Slug (e.g. wireless-headphones)"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <textarea
+                    rows={2}
+                    value={formData.seo.description}
+                    onChange={(e) => updateSeo('description', e.target.value)}
+                    placeholder="Meta description"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.seo.keywords.join(', ')}
+                    onChange={(e) =>
+                      updateSeo(
+                        'keywords',
+                        e.target.value.split(',').map((k) => k.trim()).filter(Boolean)
+                      )
+                    }
+                    placeholder="Keywords (comma separated)"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -586,7 +943,30 @@ export const ProductModule: React.FC = () => {
               </span>
               <button onClick={() => setPreviewProduct(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <img src={previewProduct.images[0]} alt={previewProduct.name} className="h-48 w-full rounded-2xl object-cover mb-4" />
+            <img
+              src={
+                previewProduct.images[previewImageIndex] ||
+                previewProduct.images[0] ||
+                'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
+              }
+              alt={previewProduct.name}
+              className="h-48 w-full rounded-2xl object-cover mb-4"
+            />
+            {previewProduct.images.length > 1 && (
+              <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                {previewProduct.images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPreviewImageIndex(i)}
+                    className={`shrink-0 cursor-pointer rounded-lg border-2 transition-colors ${
+                      i === previewImageIndex ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <img src={img} alt={`Angle ${i + 1}`} className="h-12 w-12 rounded-lg object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewProduct.name}</h3>
             <p className="text-xs text-slate-500 mt-1">{previewProduct.description}</p>
             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">

@@ -11,8 +11,10 @@ import {
   Settings,
   ChevronRight,
   Store,
+  Lock,
 } from 'lucide-react';
 import { useAdmin, TabType } from '../context/AdminContext';
+import { canAccessTab, RESTRICTED_MESSAGE } from '../lib/roles';
 
 interface SidebarProps {
   mobileMenuOpen?: boolean;
@@ -29,13 +31,19 @@ interface NavItem {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMobileMenuOpen }) => {
-  const { currentTab, setCurrentTab, orders, inventoryItems, products, settings, staffUsers } = useAdmin();
+  const { currentTab, setCurrentTab, orders, inventoryItems, products, settings, staffUsers, user, addToast } = useAdmin();
 
-  const currentUser = staffUsers[0] || {
-    name: 'Admin',
-    email: 'admin@example.com',
-    roleName: 'Admin',
-  };
+  const currentUser = user
+    ? {
+        name: user.name,
+        email: user.email,
+        roleName: user.role,
+      }
+    : staffUsers[0] || {
+        name: 'Admin',
+        email: 'admin@example.com',
+        roleName: 'Admin',
+      };
 
   // Badges calculation
   const pendingOrdersCount = orders.filter(
@@ -58,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
       category: 'Operations',
     },
     { id: 'customers', label: 'Customers & Reviews', icon: Users, category: 'Operations' },
+    { id: 'inventory', label: 'Inventory & Warehouses', icon: Package, badge: lowStockCount > 0 ? lowStockCount : undefined, badgeColor: 'bg-amber-500 text-white', category: 'Operations' },
     { id: 'payment-shipping', label: 'Payment & Shipping', icon: CreditCard, category: 'Storefront' },
     { id: 'cms', label: 'CMS & Page Builder', icon: FileText, category: 'Storefront' },
     { id: 'marketing', label: 'Marketing & Coupons', icon: Megaphone, category: 'Storefront' },
@@ -99,15 +108,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
                 {items.map((item) => {
                   const Icon = item.icon;
                   const isActive = currentTab === item.id;
+                  const allowed = canAccessTab(user?.role, item.id);
                   return (
                     <button
                       key={item.id}
-                      onClick={() => handleSelectTab(item.id)}
+                      onClick={() => {
+                        if (!allowed) {
+                          addToast({ type: 'warning', title: 'Access Restricted', message: RESTRICTED_MESSAGE });
+                        }
+                        handleSelectTab(item.id);
+                      }}
                       className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-indigo-600 text-white font-semibold shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/80'
-                      }`}
+                          : allowed
+                          ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/80'
+                          : 'text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400'
+                      } ${!allowed && !isActive ? 'opacity-70' : ''}`}
                     >
                       <div className="flex items-center gap-2.5">
                         <Icon
@@ -119,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
                       </div>
 
                       <div className="flex items-center gap-1.5">
+                        {!allowed && <Lock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />}
                         {item.badge !== undefined && (
                           <span
                             className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${

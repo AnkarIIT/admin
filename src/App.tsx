@@ -16,10 +16,24 @@ import { CMSModule } from './components/modules/CMSModule';
 import { MarketingModule } from './components/modules/MarketingModule';
 import { StaffModule } from './components/modules/StaffModule';
 import { SettingsModule } from './components/modules/SettingsModule';
+import { RestrictedAccess } from './components/common/RestrictedAccess';
+import { canAccessTab } from './lib/roles';
 
 const MainLayout: React.FC = () => {
-  const { currentTab } = useAdmin();
+  const { currentTab, user } = useAdmin();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+  const restrictedLabels: Partial<Record<string, string>> = {
+    cms: 'CMS & Page Builder',
+    settings: 'Store Settings',
+    staff: 'Staff Roles & Security',
+    'users-roles': 'Staff Roles & Security',
+    inventory: 'Inventory & Warehouses',
+    'payment-shipping': 'Payment & Shipping',
+  };
+  const allowed = user ? canAccessTab(user.role, currentTab) : true;
+  const restrictedLabel = restrictedLabels[currentTab];
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
       {/* Top Fixed Utility Navigation Header */}
@@ -31,15 +45,17 @@ const MainLayout: React.FC = () => {
 
         {/* Main Content Workspace Container */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full transition-all overflow-y-auto">
-          {currentTab === 'dashboard' && <DashboardModule />}
-          {currentTab === 'products' && <ProductModule />}
-          {currentTab === 'orders' && <OrderModule />}
-          {currentTab === 'customers' && <CustomerModule />}
-          {currentTab === 'payment-shipping' && <PaymentShippingModule />}
-          {currentTab === 'cms' && <CMSModule />}
-          {currentTab === 'marketing' && <MarketingModule />}
-          {(currentTab === 'staff' || currentTab === 'users-roles') && <StaffModule />}
-          {currentTab === 'settings' && <SettingsModule />}
+          {allowed && currentTab === 'dashboard' && <DashboardModule />}
+          {allowed && currentTab === 'products' && <ProductModule />}
+          {allowed && currentTab === 'orders' && <OrderModule />}
+          {allowed && currentTab === 'customers' && <CustomerModule />}
+          {allowed && currentTab === 'inventory' && <InventoryModule />}
+          {allowed && currentTab === 'payment-shipping' && <PaymentShippingModule />}
+          {allowed && currentTab === 'cms' && <CMSModule />}
+          {allowed && currentTab === 'marketing' && <MarketingModule />}
+          {allowed && (currentTab === 'staff' || currentTab === 'users-roles') && <StaffModule />}
+          {allowed && currentTab === 'settings' && <SettingsModule />}
+          {!allowed && <RestrictedAccess label={restrictedLabel} />}
         </main>
       </div>
 

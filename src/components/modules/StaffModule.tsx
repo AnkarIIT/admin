@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { StaffUser } from '../../types';
+import { isSuperAdmin, RESTRICTED_MESSAGE } from '../../lib/roles';
 
 const generateRandomPassword = () => {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -22,19 +23,17 @@ const generateRandomPassword = () => {
   const digits = '23456789';
   const symbols = '@#$%&*!?';
   const all = upper + lower + digits + symbols;
-  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
-  const chars = [
-    pick(upper),
-    pick(lower),
-    pick(digits),
-    pick(symbols),
-    ...Array.from({ length: 10 }, () => pick(all)),
-  ];
+  const rand = new Uint32Array(14);
+  crypto.getRandomValues(rand);
+  const pick = (chars: string, i: number) => chars[rand[i] % chars.length];
+  const chars = [pick(upper, 0), pick(lower, 1), pick(digits, 2), pick(symbols, 3)];
+  for (let i = 4; i < 14; i++) chars.push(pick(all, i));
   return chars.sort(() => Math.random() - 0.5).join('');
 };
 
 export const StaffModule: React.FC = () => {
-  const { staffUsers, activityLogs, addStaffUser, updateStaffRole } = useAdmin();
+  const { staffUsers, activityLogs, addStaffUser, updateStaffRole, user } = useAdmin();
+  const canManageStaff = isSuperAdmin(user?.role);
 
   const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'audit'>('users');
 
@@ -135,15 +134,21 @@ export const StaffModule: React.FC = () => {
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button
-              onClick={() => {
-                setError('');
-                setModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
-            >
-              <UserPlus className="h-4 w-4" /> Add Staff Member
-            </button>
+            {canManageStaff ? (
+              <button
+                onClick={() => {
+                  setError('');
+                  setModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
+              >
+                <UserPlus className="h-4 w-4" /> Add Staff Member
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+                <Lock className="h-4 w-4" /> {RESTRICTED_MESSAGE}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
