@@ -1,9 +1,24 @@
 import type { ActivityLog, Coupon, Order, Product, StaffUser, StoreSettings } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  const csrfCookie = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('csrf_token='));
+  if (csrfCookie) {
+    const value = csrfCookie.split('=')[1];
+    if (value) {
+      headers['X-CSRF-Token'] = decodeURIComponent(value);
+    }
+  }
+
   const res = await fetch(`/api${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      ...headers,
+      ...(options?.headers as Record<string, string> || {}),
+    },
   });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
