@@ -21,7 +21,7 @@ const MainLayout: React.FC = () => {
   const { currentTab } = useAdmin();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
       {/* Top Fixed Utility Navigation Header */}
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 

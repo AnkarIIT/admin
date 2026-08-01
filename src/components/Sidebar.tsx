@@ -84,11 +84,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-16 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 shrink-0 overflow-y-auto ${
+        className={`fixed top-16 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 transition-transform duration-300 ease-in-out lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:translate-x-0 shrink-0 flex flex-col justify-between overflow-y-auto ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-4 space-y-6">
+        <div className="p-4 space-y-6 flex-1">
           {categories.map((cat) => {
             const items = navItems.filter((item) => item.category === cat);
             return (

@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   Mail,
   ArrowLeft,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 function formatRecoveryInput(raw: string): string {
@@ -21,7 +23,7 @@ function formatRecoveryInput(raw: string): string {
 }
 
 const LoginPage: React.FC = () => {
-  const { loginWithTotp, loginWithPassword, completeSetup, enterAdmin, addToast } = useAdmin();
+  const { loginWithTotp, loginWithPassword, completeSetup, enterAdmin, addToast, darkMode, toggleDarkMode } = useAdmin();
 
   // Screen/flow state
   const [checking, setChecking] = useState(true);
@@ -185,23 +187,51 @@ const LoginPage: React.FC = () => {
   const recoveryReady = code.replace(/[^A-Z0-9]/g, '').length === 12;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden font-sans">
-      <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-indigo-600/30 blur-3xl" />
-      <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-purple-600/30 blur-3xl" />
-      <div className="absolute top-1/3 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
+    <div className={`min-h-screen flex items-center justify-center transition-colors duration-200 relative overflow-hidden font-sans ${
+      darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+    }`}>
+      {/* Dynamic Theme Switcher Button */}
+      <button
+        type="button"
+        onClick={toggleDarkMode}
+        className={`absolute top-4 right-4 z-50 p-3 rounded-2xl border transition-all cursor-pointer ${
+          darkMode
+            ? 'border-white/10 bg-white/5 text-amber-400 hover:bg-white/10'
+            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+        }`}
+        title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
+
+      <div className={`absolute -top-32 -left-32 h-96 w-96 rounded-full blur-3xl transition-colors duration-200 ${
+        darkMode ? 'bg-indigo-600/30' : 'bg-indigo-400/20'
+      }`} />
+      <div className={`absolute -bottom-32 -right-32 h-96 w-96 rounded-full blur-3xl transition-colors duration-200 ${
+        darkMode ? 'bg-purple-600/30' : 'bg-purple-400/20'
+      }`} />
+      <div className={`absolute top-1/3 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full blur-3xl transition-colors duration-200 ${
+        darkMode ? 'bg-fuchsia-500/10' : 'bg-fuchsia-400/10'
+      }`} />
 
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="mb-8 text-center">
           <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/30">
             <Boxes className="h-8 w-8 text-white" />
           </div>
-          <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-white">
-            3D By SD <span className="text-indigo-400">Admin</span>
+          <h1 className={`mt-4 text-2xl font-extrabold tracking-tight ${
+            darkMode ? 'text-white' : 'text-slate-900'
+          }`}>
+            3D By SD <span className="text-indigo-600 dark:text-indigo-400">Admin</span>
           </h1>
-          <p className="mt-1 text-sm text-slate-400">Secured sign-in with your authenticator app</p>
+          <p className={`mt-1 text-sm ${
+            darkMode ? 'text-slate-400' : 'text-slate-500'
+          }`}>Secured sign-in with your authenticator app</p>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl shadow-2xl">
+        <div className={`rounded-3xl border p-6 transition-colors duration-200 ${
+          darkMode ? 'border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl' : 'border-slate-200 bg-white shadow-xl'
+        }`}>
           {checking ? (
             <div className="flex min-h-40 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
@@ -250,17 +280,17 @@ const LoginPage: React.FC = () => {
           ) : showPasswordInput ? (
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
               <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
                   <Mail className="h-6 w-6" />
                 </div>
-                <h2 className="text-base font-bold text-white">Login with Email</h2>
-                <p className="mt-1 text-xs text-slate-400">
+                <h2 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Login with Email</h2>
+                <p className={`mt-1 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                   Enter your admin credentials to proceed.
                 </p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                <label className={`mb-1.5 block text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                   Email Address
                 </label>
                 <input
@@ -270,12 +300,16 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="user@example.com"
                   autoComplete="email"
-                  className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                  className={`w-full min-h-11 rounded-xl border px-3 py-2 text-sm outline-none transition-all ${
+                    darkMode
+                      ? 'border-white/10 bg-slate-900/70 text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40'
+                      : 'border-slate-300 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                <label className={`mb-1.5 block text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                   Password
                 </label>
                 <input
@@ -285,7 +319,11 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                  className={`w-full min-h-11 rounded-xl border px-3 py-2 text-sm outline-none transition-all ${
+                    darkMode
+                      ? 'border-white/10 bg-slate-900/70 text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40'
+                      : 'border-slate-300 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20'
+                  }`}
                 />
               </div>
 
@@ -308,7 +346,7 @@ const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleBackToTotp}
-                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                   Back to TOTP login
@@ -318,11 +356,11 @@ const LoginPage: React.FC = () => {
           ) : !enabled ? (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
                   <Smartphone className="h-6 w-6" />
                 </div>
-                <h2 className="text-base font-bold text-white">Set up your authenticator</h2>
-                <p className="mt-1 text-xs text-slate-400">
+                <h2 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Set up your authenticator</h2>
+                <p className={`mt-1 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                   First time here? Scan the QR code with Google Authenticator to enable TOTP login for your admin.
                 </p>
               </div>
@@ -333,18 +371,20 @@ const LoginPage: React.FC = () => {
                     <img
                       src={setup.qr}
                       alt="TOTP QR Code"
-                      className="h-44 w-44 rounded-2xl border border-white/10 bg-white p-2"
+                      className={`h-44 w-44 rounded-2xl border p-2 bg-white ${darkMode ? 'border-white/10' : 'border-slate-200 shadow-sm'}`}
                     />
                   </div>
                   <div>
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">Manual setup key</p>
-                    <p className="break-all rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 font-mono text-xs font-bold text-indigo-300">
+                    <p className={`mb-1 text-[11px] font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Manual setup key</p>
+                    <p className={`break-all rounded-xl border px-3 py-2 font-mono text-xs font-bold transition-all ${
+                      darkMode ? 'border-white/10 bg-slate-900/60 text-indigo-300' : 'border-slate-200 bg-slate-50 text-indigo-700'
+                    }`}>
                       {setup.secret}
                     </p>
                   </div>
                   <form onSubmit={handleSetupConfirm} className="space-y-3">
                     <div>
-                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                      <label className={`mb-1.5 block text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
                         Enter 6-digit code
                       </label>
                       <input
@@ -356,7 +396,11 @@ const LoginPage: React.FC = () => {
                         pattern="[0-9]*"
                         autoComplete="one-time-code"
                         aria-label="Authenticator setup code"
-                        className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 py-3 text-center text-2xl font-bold tracking-[0.35em] text-white placeholder-slate-600 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40"
+                        className={`w-full min-h-11 rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.35em] outline-none transition-all ${
+                          darkMode
+                            ? 'border-white/10 bg-slate-900/70 text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40'
+                            : 'border-slate-300 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20'
+                        }`}
                       />
                     </div>
                     {error && (
@@ -392,7 +436,7 @@ const LoginPage: React.FC = () => {
                   setShowPasswordInput(true);
                   setError('');
                 }}
-                className="mt-4 flex items-center justify-center gap-1 text-sm font-semibold text-slate-400 hover:text-white mx-auto"
+                className="mt-4 flex items-center justify-center gap-1 text-sm font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900 mx-auto"
               >
                 Login with email
               </button>
@@ -400,13 +444,13 @@ const LoginPage: React.FC = () => {
           ) : (
             <form onSubmit={handleLoginForm} className="space-y-4">
               <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 text-purple-300">
+                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-300">
                   {useRecovery ? <KeySquare className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
                 </div>
-                <h2 className="text-base font-bold text-white">
+                <h2 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
                   {useRecovery ? 'Enter a one-time code' : 'Two-Factor Authentication'}
                 </h2>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className={`mt-1 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                   {useRecovery
                     ? 'Use one of the single-use codes you saved when enabling TOTP.'
                     : `Enter the 6-digit code from your Google Authenticator app.`}
@@ -423,7 +467,11 @@ const LoginPage: React.FC = () => {
                 autoComplete={useRecovery ? 'off' : 'one-time-code'}
                 maxLength={useRecovery ? 14 : 6}
                 aria-label={useRecovery ? 'Recovery code' : 'Authenticator code'}
-                className="w-full min-h-11 rounded-xl border border-white/10 bg-slate-900/70 py-3 text-center text-2xl font-bold tracking-[0.35em] text-white placeholder-slate-600 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40"
+                className={`w-full min-h-11 rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.35em] outline-none transition-all ${
+                  darkMode
+                    ? 'border-white/10 bg-slate-900/70 text-white placeholder-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/40'
+                    : 'border-slate-300 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                }`}
               />
 
               {error && (
@@ -451,7 +499,7 @@ const LoginPage: React.FC = () => {
                     autoSubmitted.current = false;
                     setTimeout(() => codeRef.current?.focus(), 50);
                   }}
-                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
                 >
                   {useRecovery ? 'Use authenticator code instead' : 'Lost your device? Use a recovery code'}
                 </button>
@@ -462,7 +510,7 @@ const LoginPage: React.FC = () => {
                     setShowPasswordInput(true);
                     setError('');
                   }}
-                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white"
+                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
                 >
                   🔑 Login with email
                 </button>
@@ -471,7 +519,7 @@ const LoginPage: React.FC = () => {
           )}
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-slate-400">
+        <p className={`mt-6 text-center text-[11px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
           Protected with TOTP two-factor authentication · No password required
         </p>
       </div>
