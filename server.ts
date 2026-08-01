@@ -2,6 +2,7 @@
 import path from "path";
 import { pathToFileURL } from "url";
 import dotenv from "dotenv";
+import crypto from "crypto";
 import helmet from "helmet";
 import { z } from "zod";
 import prisma from "./lib/prisma";
@@ -16,6 +17,7 @@ import {
   setSessionCookie,
   setCsrfCookie,
   clearSessionCookie,
+  clearCsrfCookie,
   generateRecoveryCodes,
   hashRecoveryCodes,
   consumeRecoveryCode,
@@ -273,6 +275,8 @@ app.get("/api/auth/me", async (req, res) => {
     const admin = await prisma.admins.findUnique({ where: { id: session.userId } });
     if (!admin) return res.status(401).json({ error: "Not authenticated" });
     if (token) setSessionCookie(res, token);
+    const csrf = crypto.randomBytes(16).toString("hex");
+    setCsrfCookie(res, csrf);
     res.json({ authenticated: true, user: publicUser(admin) });
   } catch (e: any) {
     res.status(500).json({ error: "Failed to load session" });
@@ -282,6 +286,7 @@ app.get("/api/auth/me", async (req, res) => {
 app.post("/api/auth/logout", async (req, res) => {
   await destroySession(sessionToken(req));
   clearSessionCookie(res);
+  clearCsrfCookie(res);
   res.json({ success: true });
 });
 

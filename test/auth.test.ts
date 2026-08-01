@@ -86,6 +86,8 @@ describe("auth", () => {
     const existing = await prisma.admins.findUnique({ where: { email: "admin@example.com" } });
     if (existing) {
       try {
+        await prisma.adminSession.deleteMany({ where: { adminId: existing.id } });
+        await prisma.pendingLogin.deleteMany({ where: { adminId: existing.id } });
         await prisma.audit_logs.deleteMany({ where: { admin_id: existing.id } });
         await prisma.admins.delete({ where: { id: existing.id } });
       } catch {

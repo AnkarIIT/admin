@@ -282,6 +282,28 @@ export const MarketingModule: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Minimum Spend (₹)</label>
+                  <input
+                    type="number"
+                    value={minSpend}
+                    onChange={(e) => setMinSpend(parseFloat(e.target.value) || 0)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Usage Limit</label>
+                  <input
+                    type="number"
+                    value={usageLimit}
+                    onChange={(e) => setUsageLimit(parseInt(e.target.value) || 0)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
