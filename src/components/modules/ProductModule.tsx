@@ -490,8 +490,8 @@ export const ProductModule: React.FC = () => {
 
       {/* Product Add / Edit Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 my-8">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="m-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Create New Product'}
@@ -853,8 +853,8 @@ export const ProductModule: React.FC = () => {
 
       {/* Add Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">Add Product Category</h3>
             <form onSubmit={handleAddCategorySubmit} className="space-y-3 text-xs">
               <div>
@@ -895,8 +895,8 @@ export const ProductModule: React.FC = () => {
 
       {/* Preview Product Modal */}
       {previewProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="m-auto w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex justify-between items-start mb-4">
               <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
                 {previewProduct.category}

@@ -13,8 +13,8 @@ export const InvoicePrinterModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-8">
+    <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-xs">
+      <div className="m-auto w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
         {/* Action Header */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800 print:hidden">
           <div className="flex items-center gap-2">

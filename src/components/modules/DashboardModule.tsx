@@ -24,25 +24,56 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
 } from 'recharts';
 import { useAdmin } from '../../context/AdminContext';
 
 export const DashboardModule: React.FC = () => {
-  const { products, orders, customers, settings, addToast, setCurrentTab, darkMode } = useAdmin();
+  const { products, orders, customers, settings, addToast, setCurrentTab, darkMode, loading } = useAdmin();
   const [chartPeriod, setChartPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportType, setReportType] = useState<'sales' | 'inventory' | 'customer' | 'tax'>('sales');
 
   const cur = settings.currencySymbol || '₹';
 
+  const dataAvailable = orders.length > 0 || customers.length > 0 || products.length > 0;
+
   // Compute key metrics from database data
   const totalRevenue = orders.reduce((sum, o) => sum + (o.paymentStatus === 'Paid' ? o.total : 0), 0);
   const totalOrdersCount = orders.length;
   const activeCustomersCount = customers.length;
   const pendingOrdersCount = orders.filter((o) => o.orderStatus === 'Pending' || o.orderStatus === 'Processing').length;
+  const avgOrderValue = totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0;
+
+  // Weekly trend comparisons (current 7 days vs previous 7 days)
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const NOW = Date.now();
+  const inWindow = (t: number, start: number, end: number) => t >= start && t < end;
+  const revenueIn = (list: typeof orders) =>
+    list.reduce((s, o) => s + (o.paymentStatus === 'Paid' ? o.total : 0), 0);
+  const weekOf = (list: typeof orders, offsetWeeks: number) =>
+    list.filter((o) => {
+      const t = new Date(o.createdAt).getTime();
+      return inWindow(t, NOW - (offsetWeeks + 1) * WEEK_MS, NOW - offsetWeeks * WEEK_MS);
+    });
+  const trendPct = (curVal: number, prevVal: number) =>
+    prevVal > 0 ? Math.round(((curVal - prevVal) / prevVal) * 100) : curVal > 0 ? 100 : 0;
+
+  const pendingIn = weekOf(orders.filter((o) => o.orderStatus === 'Pending' || o.orderStatus === 'Processing'), 0).length;
+  const pendingPrev = weekOf(orders.filter((o) => o.orderStatus === 'Pending' || o.orderStatus === 'Processing'), 1).length;
+
+  const metrics = [
+    { label: 'Revenue', value: totalRevenue, currency: true, trend: trendPct(revenueIn(weekOf(orders, 0)), revenueIn(weekOf(orders, 1))), sub: 'vs last week', icon: DollarSign, color: 'text-indigo-400' },
+    { label: 'Orders', value: totalOrdersCount, trend: trendPct(weekOf(orders, 0).length, weekOf(orders, 1).length), sub: 'vs last week', icon: ShoppingBag, color: 'text-slate-400' },
+    { label: 'Customers', value: activeCustomersCount, sub: 'total customers', icon: Users, color: 'text-slate-400' },
+    { label: 'Pending', value: pendingOrdersCount, trend: trendPct(pendingIn, pendingPrev), sub: 'awaiting fulfilment', icon: Clock, color: 'text-amber-400' },
+    { label: 'Live', value: products.length, live: true, sub: 'products in catalog', icon: Eye, color: 'text-emerald-400' },
+    { label: 'Avg Value', value: avgOrderValue, currency: true, sub: 'per order', icon: TrendingUp, color: 'text-slate-400' },
+  ];
+
+  const metricDisplay = (m: (typeof metrics)[number]) => {
+    if (!dataAvailable || m.value === 0) return '--';
+    return m.currency ? `${cur}${Math.round(m.value).toLocaleString('en-IN')}` : m.value.toLocaleString('en-IN');
+  };
 
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -82,6 +113,7 @@ export const DashboardModule: React.FC = () => {
   const categoryChartData = Array.from(catSales.entries())
     .map(([name, sales], i) => ({ name, sales, color: palette[i % palette.length] }))
     .sort((a, b) => b.sales - a.sales);
+  const maxCategorySales = categoryChartData.length ? categoryChartData[0].sales : 0;
 
   const generateCSVReport = () => {
     let headers = '';
@@ -131,36 +163,66 @@ export const DashboardModule: React.FC = () => {
       </div>
 
       {/* Metrics Grid - Minimalist */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-        {[
-          { label: 'Revenue', value: `${cur}${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'text-indigo-400' },
-          { label: 'Orders', value: totalOrdersCount, icon: ShoppingBag, color: 'text-slate-400' },
-          { label: 'Customers', value: activeCustomersCount, icon: Users, color: 'text-slate-400' },
-          { label: 'Pending', value: pendingOrdersCount, icon: Clock, color: 'text-amber-400' },
-          { label: 'Live', value: products.length, live: true, icon: Eye, color: 'text-emerald-400' },
-          { label: 'Avg Value', value: `${cur}${(totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0).toFixed(0)}`, icon: TrendingUp, color: 'text-slate-400' },
-        ].map((card, idx) => {
-          const Icon = card.icon;
-          return (
+      {loading ? (
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div
-              key={idx}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.02] p-5 transition-all hover:border-indigo-500/30"
+              key={i}
+              className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/5 dark:bg-white/[0.02]"
             >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{card.label}</span>
-                <Icon className={`h-3.5 w-3.5 ${card.color} opacity-80`} />
-              </div>
+              <div className="h-3 w-16 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+              <div className="mt-4 h-7 w-24 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+              <div className="mt-3 h-3 w-28 animate-pulse rounded bg-slate-200 dark:bg-white/5" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+          {metrics.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div
+                key={card.label}
+                className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-indigo-500/30 dark:border-white/5 dark:bg-white/[0.02]"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{card.label}</span>
+                  <Icon className={`h-3.5 w-3.5 ${card.color} opacity-80`} />
+                </div>
 
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-light text-slate-900 dark:text-white tracking-tight tabular-nums">{card.value}</span>
-                {card.live && (
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-light text-slate-900 tracking-tight tabular-nums dark:text-white">{metricDisplay(card)}</span>
+                  {card.live && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  )}
+                </div>
+
+                {card.trend !== undefined && dataAvailable ? (
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${
+                        card.trend >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                      }`}
+                    >
+                      {card.trend >= 0 ? (
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      ) : (
+                        <ArrowDownRight className="h-3.5 w-3.5" />
+                      )}
+                      {Math.abs(card.trend)}%
+                    </span>
+                    <span className="text-[10px] text-slate-400">{card.sub}</span>
+                  </div>
+                ) : (
+                  <div className="mt-3 text-[10px] text-slate-400">
+                    {!dataAvailable ? 'Data unavailable' : card.sub}
+                  </div>
                 )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -190,32 +252,38 @@ export const DashboardModule: React.FC = () => {
           </div>
 
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={currentChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#ffffff" : "#000000"} opacity={0.03} />
-                <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dy: 10}} />
-                <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dx: -5}} />
-                <Tooltip
-                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
-                  contentStyle={{
-                    backgroundColor: '#0a0a0c',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '16px',
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-                  }}
-                />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="h-full animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />
+            ) : currentChartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-slate-400">Data unavailable</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={currentChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#ffffff" : "#000000"} opacity={0.03} />
+                  <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dy: 10}} />
+                  <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dx: -5}} />
+                  <Tooltip
+                    cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    contentStyle={{
+                      backgroundColor: '#0a0a0c',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                      borderRadius: '16px',
+                      color: '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                    }}
+                  />
+                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -226,29 +294,36 @@ export const DashboardModule: React.FC = () => {
             <p className="text-[12px] text-slate-500 font-medium px-0.5">Revenue distribution.</p>
           </div>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#ffffff" : "#000000"} opacity={0.03} />
-                <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} axisLine={false} tick={{dy: 10}} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                  contentStyle={{
-                    backgroundColor: '#0a0a0c',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '16px',
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-                  }}
-                />
-                <Bar dataKey="sales" radius={[4, 4, 4, 4]}>
-                  {categoryChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-64 w-full overflow-y-auto pr-1">
+            {loading ? (
+              <div className="space-y-3">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-2 animate-pulse rounded-full bg-slate-100 dark:bg-white/5" />
+                ))}
+              </div>
+            ) : categoryChartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-slate-400">Data unavailable</div>
+            ) : (
+              <div className="space-y-4">
+                {categoryChartData.slice(0, 6).map((c) => {
+                  const pct = maxCategorySales > 0 ? Math.round((c.sales / maxCategorySales) * 100) : 0;
+                  return (
+                    <div key={c.name}>
+                      <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+                        <span className="truncate font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{c.name}</span>
+                        <span className="shrink-0 font-semibold text-slate-500">{cur}{c.sales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/5">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: c.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -281,6 +356,13 @@ export const DashboardModule: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-white/[0.03]">
+              {orders.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-xs text-slate-400">
+                    {loading ? 'Loading orders...' : 'No orders yet — new orders will appear here.'}
+                  </td>
+                </tr>
+              )}
               {orders.slice(0, 5).map((ord) => (
                 <tr key={ord.id} className="group hover:bg-white/[0.01] transition-colors">
                   <td className="py-4 px-3 font-mono font-bold text-indigo-500/80 uppercase">{ord.id.slice(0, 8)}</td>

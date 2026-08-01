@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
                           }
                           handleSelectTab(item.id);
                         }}
-                        className={`group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all cursor-pointer ${
+                        className={`group relative flex w-full items-center justify-between rounded-xl pl-5 pr-3 py-2.5 text-[13px] font-medium transition-all cursor-pointer ${
                           isActive
                             ? 'text-white bg-white/[0.03] shadow-lg shadow-black/20 border border-white/5'
                             : allowed
@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
                         </div>
 
                         {isActive && (
-                          <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-indigo-500 rounded-full" />
+                          <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-blue-600" />
                         )}
                       </button>
                     );
