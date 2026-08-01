@@ -164,7 +164,9 @@ interface AdminContextType {
 
   // Roles / Settings
   updateStaffUserRole: (userId: string, roleId: string) => void;
-  addStaffUser: (user: Omit<StaffUser, 'id'>) => void;
+  addStaffUser: (
+    user: Omit<StaffUser, 'id'> & { password?: string }
+  ) => Promise<{ email: string; password: string } | undefined>;
   updateStaffRole: (userId: string, roleName: string) => void;
   updateStoreSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
@@ -706,14 +708,32 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addToast({ type: 'info', title: 'User Role Changed', message: `Permissions updated.` });
   };
 
-  const addStaffUser = (user: Omit<StaffUser, 'id'>) => {
-    const newUser: StaffUser = {
-      ...user,
-      id: 'staff-' + Date.now(),
-    };
-    setStaffUsers((prev) => [...prev, newUser]);
-    logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
-    addToast({ type: 'success', title: 'Staff Added', message: `Invite sent to ${newUser.email}.` });
+  const addStaffUser = async (user: Omit<StaffUser, 'id'> & { password?: string }) => {
+    try {
+      const { user: created, credentials } = await api.createStaff({
+        name: user.name,
+        email: user.email,
+        role: user.roleName,
+        password: user.password,
+      });
+      const newUser: StaffUser = {
+        id: created.id,
+        name: user.name,
+        email: user.email,
+        roleId: created.roleId,
+        roleName: created.roleName,
+        avatar: user.avatar,
+        status: user.status,
+        lastLogin: user.lastLogin,
+      };
+      setStaffUsers((prev) => [...prev, newUser]);
+      logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Added', message: `Account created for ${newUser.email}.` });
+      return credentials;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Add Failed', message: e.message });
+      return undefined;
+    }
   };
 
   const updateStaffRole = (userId: string, roleName: string) => {

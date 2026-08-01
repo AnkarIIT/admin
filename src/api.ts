@@ -50,6 +50,11 @@ export const api = {
     request<Record<string, any>>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   getStaff: () => request<StaffUser[]>('/staff'),
+  createStaff: (data: { name: string; email: string; role: string; password?: string }) =>
+    request<{ user: StaffUser; credentials: { email: string; password: string } }>('/staff', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   getActivityLogs: () => request<ActivityLog[]>('/activity-logs'),
   logActivity: (data: { action: string; module: string }) =>
     request<{ success: boolean }>('/activity-logs', { method: 'POST', body: JSON.stringify(data) }),

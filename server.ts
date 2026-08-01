@@ -1,6 +1,7 @@
 ﻿import express from "express";
 import path from "path";
 import { pathToFileURL } from "url";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import { z } from "zod";
@@ -520,6 +521,64 @@ app.get("/api/staff", async (req, res) => {
     );
   } catch (e: any) {
     handleError(res, e, "GET /api/staff");
+  }
+});
+
+// Create a new staff member (admin account) with generated login credentials
+app.post("/api/staff", async (req, res) => {
+  try {
+    const parsed = z
+      .object({
+        name: z.string().trim().min(1).max(100),
+        email: z.string().trim().email().max(255),
+        role: z.string().trim().min(1).max(50).optional(),
+        password: z.string().min(6).max(128).optional(),
+      })
+      .parse(req.body);
+
+    const email = parsed.email.toLowerCase();
+    const role = parsed.role || "editor";
+    const password = parsed.password || crypto.randomBytes(12).toString("base64url");
+
+    const existing = await prisma.admins.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(409).json({ error: "A staff member with this email already exists." });
+    }
+
+    const admin = await prisma.admins.create({
+      data: {
+        email,
+        password_hash: hashPassword(password),
+        role,
+        totp_enabled: false,
+      },
+    });
+
+    await prisma.audit_logs.create({
+      data: {
+        admin_id: (req as any).userId ?? null,
+        action: "staff_created",
+        details: { module: "Staff", email, role },
+        ip_address: clientIp(req),
+      },
+    });
+
+    res.status(201).json({
+      user: {
+        id: admin.id,
+        name: email.split("@")[0],
+        email: admin.email,
+        roleId: admin.role,
+        roleName: admin.role,
+        status: "Active",
+        lastLogin: admin.updated_at ? admin.updated_at.toISOString() : "",
+      },
+      credentials: { email, password },
+    });
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
+    if (e.code === "P2002") return res.status(409).json({ error: "A staff member with this email already exists." });
+    handleError(res, e, "POST /api/staff");
   }
 });
 
