@@ -295,7 +295,11 @@ export function setSessionCookie(res: Response, token: string) {
 }
 
 export function clearSessionCookie(res: Response) {
-  res.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  appendSetCookie(res, `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+export function clearCsrfCookie(res: Response) {
+  appendSetCookie(res, `csrf_token=; Path=/; SameSite=Lax; Max-Age=0`);
 }
 
 export function publicUser(admin: {

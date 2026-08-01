@@ -184,4 +184,3 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
     </>
   );
 };
-
