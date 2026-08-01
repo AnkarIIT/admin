@@ -53,8 +53,7 @@ export const ProductModule: React.FC = () => {
   const [newCatDesc, setNewCatDesc] = useState('');
 
   // Product Images
-  const MAX_IMAGES = 6;
-  const [imageUrl, setImageUrl] = useState('');
+  const MAX_IMAGES = 10;
   const [tagInput, setTagInput] = useState('');
 
   // Product Form State
@@ -207,15 +206,21 @@ export const ProductModule: React.FC = () => {
     setFormData({ ...formData, images: arr });
   };
 
-  const addImageByUrl = () => {
-    const url = imageUrl.trim();
-    if (!url) return;
-    if (formData.images.length >= MAX_IMAGES) {
-      addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
-      return;
+  const handleProductVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      if (!file.type.startsWith('video/')) {
+        addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
+        return;
+      }
+      const dataUrl = await fileToDataUrl(file, 15 * 1024 * 1024, true);
+      setFormData({ ...formData, videoUrl: dataUrl });
+      addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Upload failed', message: err.message });
     }
-    setFormData({ ...formData, images: [...formData.images, url] });
-    setImageUrl('');
+    e.target.value = '';
   };
 
   const addTag = () => {
@@ -265,9 +270,9 @@ export const ProductModule: React.FC = () => {
   };
 
   const exportProductsCSV = () => {
-    const headers = 'ID,Name,SKU,Category,Price ($),Cost ($),Stock,Status\n';
+    const headers = 'ID,Name,SKU,Category,Price (₹),Stock,Status\n';
     const rows = products
-      .map((p) => `"${p.id}","${p.name}","${p.sku}","${p.category}",${p.price},${p.costPrice},${p.stock},"${p.status}"`)
+      .map((p) => `"${p.id}","${p.name}","${p.sku}","${p.category}",${p.price},${p.stock},"${p.status}"`)
       .join('\n');
 
     const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -403,9 +408,9 @@ export const ProductModule: React.FC = () => {
                   <td className="py-3.5 px-3 font-semibold text-slate-700 dark:text-slate-300">{p.category}</td>
 
                   <td className="py-3.5 px-3">
-                    <div className="font-black text-slate-900 dark:text-white">${p.price.toFixed(2)}</div>
+                    <div className="font-black text-slate-900 dark:text-white">₹{p.price.toFixed(2)}</div>
                     {p.compareAtPrice && (
-                      <span className="text-[10px] text-slate-400 line-through">${p.compareAtPrice.toFixed(2)}</span>
+                      <span className="text-[10px] text-slate-400 line-through">₹{p.compareAtPrice.toFixed(2)}</span>
                     )}
                   </td>
 
@@ -544,9 +549,9 @@ export const ProductModule: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price ($)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -554,10 +559,11 @@ export const ProductModule: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">Price customers pay on the store</p>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Compare At Price ($)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Compare At Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -565,53 +571,7 @@ export const ProductModule: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, compareAtPrice: parseFloat(e.target.value) || 0 })}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Cost Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.costPrice}
-                    onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Stock Units</label>
-                  <input
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Low Stock Threshold</label>
-                  <input
-                    type="number"
-                    value={formData.lowStockThreshold}
-                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 0 })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as Product['status'] })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Archived">Archived</option>
-                    <option value="Out of Stock">Out of Stock</option>
-                  </select>
+                  <p className="mt-1 text-[11px] text-slate-400">Original price — shown struck-through on the store</p>
                 </div>
               </div>
 
@@ -647,23 +607,6 @@ export const ProductModule: React.FC = () => {
                   </span>
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
                 </label>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="...or paste an image URL to add another angle"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={addImageByUrl}
-                    className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 cursor-pointer"
-                  >
-                    Add
-                  </button>
-                </div>
 
                 {formData.images.length > 0 && (
                   <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -705,16 +648,33 @@ export const ProductModule: React.FC = () => {
                 )}
               </div>
 
-              {/* Video URL */}
+              {/* Product Video */}
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Video URL (optional)</label>
-                <input
-                  type="text"
-                  value={formData.videoUrl}
-                  onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
-                  placeholder="https://youtube.com/watch?v=..."
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                />
+                <label className="font-bold text-slate-700 dark:text-slate-300">Product Video (optional)</label>
+                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
+                  <Video className="h-6 w-6 text-slate-400" />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {formData.videoUrl ? 'Video attached — click to replace' : 'Click to upload a product video (MP4, WebM, max 15MB)'}
+                  </span>
+                  <input type="file" accept="video/*" className="hidden" onChange={handleProductVideoUpload} />
+                </label>
+                {formData.videoUrl && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Video className="h-4 w-4 shrink-0 text-indigo-500" />
+                      <video src={formData.videoUrl} className="h-12 w-16 shrink-0 rounded-md object-cover" controls />
+                      <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">Product video attached</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, videoUrl: '' })}
+                      className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-rose-500 dark:hover:bg-slate-700 cursor-pointer"
+                      title="Remove video"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Tags */}
@@ -970,7 +930,7 @@ export const ProductModule: React.FC = () => {
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewProduct.name}</h3>
             <p className="text-xs text-slate-500 mt-1">{previewProduct.description}</p>
             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">
-              <span className="font-extrabold text-base text-slate-900 dark:text-white">${previewProduct.price.toFixed(2)}</span>
+              <span className="font-extrabold text-base text-slate-900 dark:text-white">₹{previewProduct.price.toFixed(2)}</span>
               <span className="font-bold text-emerald-600">{previewProduct.stock} units available</span>
             </div>
           </div>

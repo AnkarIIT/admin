@@ -35,16 +35,16 @@ const MainLayout: React.FC = () => {
   const restrictedLabel = restrictedLabels[currentTab];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
-      {/* Top Fixed Utility Navigation Header */}
+    <div className="min-h-screen bg-[#0a0a0c] text-slate-100 font-sans transition-colors duration-200 flex flex-col selection:bg-indigo-500/30">
+      {/* Minimal ambient glow for depth */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 h-[500px] w-[1000px] bg-indigo-500/[0.03] blur-[120px] pointer-events-none z-0" />
+
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Responsive Navigation Sidebar */}
+      <div className="relative z-10 flex flex-1 overflow-hidden">
         <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
-        {/* Main Content Workspace Container */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full transition-all overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto w-full transition-all overflow-y-auto overflow-x-hidden">
           {allowed && currentTab === 'dashboard' && <DashboardModule />}
           {allowed && currentTab === 'products' && <ProductModule />}
           {allowed && currentTab === 'orders' && <OrderModule />}

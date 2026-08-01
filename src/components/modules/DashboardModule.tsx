@@ -108,57 +108,53 @@ export const DashboardModule: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 dark:from-indigo-950 dark:via-indigo-900 dark:to-slate-900 p-6 text-white shadow-lg">
-        <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 dark:bg-indigo-500/30 px-3 py-1 text-xs font-bold text-white dark:text-indigo-200 border border-white/30 dark:border-indigo-400/30 mb-2">
-            <Zap className="h-3.5 w-3.5 text-amber-300" /> Real-Time Analytics Engine
-          </span>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight">Executive Performance Dashboard</h2>
-          <p className="text-xs text-indigo-100 dark:text-indigo-200 mt-1 max-w-xl">
-            Live telemetry monitoring sales velocity, order conversion funnels, inventory balance, and traffic health.
+    <div className="space-y-10 selection:bg-indigo-500/30">
+      {/* Top Header / Actions */}
+      <div className="flex flex-col sm:flex-row items-end justify-between gap-6">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+            <Zap className="h-6 w-6 text-indigo-500" />
+            Dashboard
+          </h2>
+          <p className="text-[13px] text-slate-500 font-medium">
+            Real-time telemetry and executive performance metrics.
           </p>
         </div>
 
         <button
           onClick={() => setReportModalOpen(true)}
-          className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-extrabold text-indigo-900 shadow-md hover:bg-indigo-50 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 dark:border dark:border-slate-700 transition-all active:scale-95 shrink-0 cursor-pointer"
+          className="flex items-center gap-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-2.5 text-[13px] font-bold transition-all hover:opacity-90 active:scale-[0.98] shadow-lg shadow-black/10"
         >
-          <FileSpreadsheet className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Custom Reports & CSV Export
+          <FileSpreadsheet className="h-4 w-4" /> Export Report
         </button>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* Metrics Grid - Minimalist */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         {[
-          { label: 'Total Revenue', value: `${cur}${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400' },
-          { label: 'Total Orders', value: totalOrdersCount, icon: ShoppingBag, color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 dark:text-indigo-400' },
-          { label: 'Active Customers', value: activeCustomersCount, icon: Users, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/60 dark:text-purple-400' },
-          { label: 'Pending Orders', value: pendingOrdersCount, icon: Percent, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-400' },
-          { label: 'Products Live', value: products.length, live: true, icon: Eye, color: 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-400' },
-          { label: 'Avg Order Value', value: `${cur}${(totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0).toFixed(2)}`, icon: TrendingUp, color: 'text-sky-600 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-400' },
+          { label: 'Revenue', value: `${cur}${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'text-indigo-400' },
+          { label: 'Orders', value: totalOrdersCount, icon: ShoppingBag, color: 'text-slate-400' },
+          { label: 'Customers', value: activeCustomersCount, icon: Users, color: 'text-slate-400' },
+          { label: 'Pending', value: pendingOrdersCount, icon: Clock, color: 'text-amber-400' },
+          { label: 'Live', value: products.length, live: true, icon: Eye, color: 'text-emerald-400' },
+          { label: 'Avg Value', value: `${cur}${(totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0).toFixed(0)}`, icon: TrendingUp, color: 'text-slate-400' },
         ].map((card, idx) => {
           const Icon = card.icon;
           return (
             <div
               key={idx}
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900 transition-all hover:shadow-md"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.02] p-5 transition-all hover:border-indigo-500/30"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{card.label}</span>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${card.color}`}>
-                  <Icon className="h-4 w-4" />
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{card.label}</span>
+                <Icon className={`h-3.5 w-3.5 ${card.color} opacity-80`} />
               </div>
 
-              <div className="mt-3 flex items-baseline justify-between">
-                <span className="text-lg font-black text-slate-900 dark:text-white tracking-tight">{card.value}</span>
-                {card.live ? (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 animate-pulse">
-                    <span className="h-2 w-2 rounded-full bg-rose-500" /> LIVE NOW
-                  </span>
-                ) : null}
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-light text-slate-900 dark:text-white tracking-tight tabular-nums">{card.value}</span>
+                {card.live && (
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
               </div>
             </div>
           );
@@ -166,24 +162,24 @@ export const DashboardModule: React.FC = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales & Traffic Trend Line Chart */}
-        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Sales Analytics</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Revenue ({settings.currency}) vs order volume over time</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Sales Trend */}
+        <div className="lg:col-span-2 rounded-3xl border border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.01] p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Sales Analytics</h3>
+              <p className="text-[12px] text-slate-500 font-medium px-0.5">Revenue and order volume trends.</p>
             </div>
 
-            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
               {(['daily', 'weekly', 'monthly'] as const).map((period) => (
                 <button
                   key={period}
                   onClick={() => setChartPeriod(period)}
-                  className={`rounded-lg px-3 py-1 text-xs font-bold capitalize transition-all ${
+                  className={`rounded-lg px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider transition-all ${
                     chartPeriod === period
-                      ? 'bg-white text-indigo-600 shadow-xs dark:bg-slate-700 dark:text-indigo-300'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
                   }`}
                 >
                   {period}
@@ -192,65 +188,62 @@ export const DashboardModule: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 h-72 w-full">
+          <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={currentChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={currentChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
-                  </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#ffffff" : "#000000"} opacity={0.03} />
+                <XAxis dataKey="label" stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dy: 10}} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} axisLine={false} tick={{dx: -5}} />
                 <Tooltip
+                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
                   contentStyle={{
-                    backgroundColor: darkMode ? '#0f172a' : '#ffffff',
-                    borderColor: darkMode ? '#1e293b' : '#e2e8f0',
-                    borderRadius: '12px',
-                    color: darkMode ? '#ffffff' : '#0f172a',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    backgroundColor: '#0a0a0c',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: '16px',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
                   }}
                 />
-                <Area type="monotone" dataKey="revenue" name={`Revenue (${settings.currency})`} stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-                <Area type="monotone" dataKey="orders" name="Orders" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorOrders)" />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Category Sales Breakdown Bar Chart */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-slate-100 pb-4 dark:border-slate-800">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Sales by Category</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Top revenue generating departments</p>
+        {/* Category Breakdown */}
+        <div className="rounded-3xl border border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.01] p-8">
+          <div className="mb-10 space-y-1">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">By Category</h3>
+            <p className="text-[12px] text-slate-500 font-medium px-0.5">Revenue distribution.</p>
           </div>
 
-          <div className="mt-6 h-64 w-full">
+          <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+              <BarChart data={categoryChartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }} barSize={32}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#ffffff" : "#000000"} opacity={0.03} />
+                <XAxis dataKey="name" stroke="#475569" fontSize={9} tickLine={false} axisLine={false} tick={{dy: 10}} />
                 <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                   contentStyle={{
-                    backgroundColor: darkMode ? '#0f172a' : '#ffffff',
-                    borderColor: darkMode ? '#1e293b' : '#e2e8f0',
-                    borderRadius: '12px',
-                    color: darkMode ? '#ffffff' : '#0f172a',
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    backgroundColor: '#0a0a0c',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: '16px',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
                   }}
                 />
-                <Bar dataKey="sales" radius={[8, 8, 0, 0]}>
+                <Bar dataKey="sales" radius={[4, 4, 4, 4]}>
                   {categoryChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
                   ))}
                 </Bar>
               </BarChart>
@@ -259,61 +252,62 @@ export const DashboardModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Real-Time Recent Activity & Orders Ticker Feed */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-ping" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">Live Order Stream</h3>
+      {/* Recent Orders Ticker - Minimalist Table */}
+      <div className="rounded-3xl border border-slate-200 dark:border-white/5 bg-white dark:bg-white/[0.01] p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Live Stream</h3>
           </div>
           <button
             onClick={() => setCurrentTab('orders')}
-            className="text-xs font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+            className="text-[11px] font-bold uppercase tracking-wider text-indigo-500 hover:text-indigo-400 transition-colors"
           >
-            View All Orders →
+            Full Queue →
           </button>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[12px] border-collapse">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-2">Order ID</th>
-                <th className="py-3 px-2">Customer</th>
-                <th className="py-3 px-2">Items</th>
-                <th className="py-3 px-2">Total Amount</th>
-                <th className="py-3 px-2">Order Status</th>
-                <th className="py-3 px-2">Payment</th>
-                <th className="py-3 px-2 text-right">Time</th>
+              <tr className="text-slate-600 dark:text-slate-500 font-bold uppercase tracking-[0.1em] text-[10px]">
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5">ID</th>
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5">Entity</th>
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5">Volume</th>
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5">Total</th>
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5">Status</th>
+                <th className="py-4 px-3 font-bold border-b border-slate-100 dark:border-white/5 text-right">Activity</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-50 dark:divide-white/[0.03]">
               {orders.slice(0, 5).map((ord) => (
-                <tr key={ord.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="py-3 px-2 font-bold text-indigo-600 dark:text-indigo-400">{ord.id}</td>
-                  <td className="py-3 px-2 font-semibold text-slate-900 dark:text-white">{ord.customerName}</td>
-                  <td className="py-3 px-2 text-slate-500">{ord.items.length} item(s)</td>
-                  <td className="py-3 px-2 font-extrabold text-slate-900 dark:text-white">{cur}{ord.total.toFixed(2)}</td>
-                  <td className="py-3 px-2">
+                <tr key={ord.id} className="group hover:bg-white/[0.01] transition-colors">
+                  <td className="py-4 px-3 font-mono font-bold text-indigo-500/80 uppercase">{ord.id.slice(0, 8)}</td>
+                  <td className="py-4 px-3 font-medium text-slate-900 dark:text-white">{ord.customerName}</td>
+                  <td className="py-4 px-3 text-slate-500">{ord.items.length} units</td>
+                  <td className="py-4 px-3 font-bold text-slate-900 dark:text-slate-200">{cur}{ord.total.toLocaleString()}</td>
+                  <td className="py-4 px-3">
                     <span
-                      className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-extrabold ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
                         ord.orderStatus === 'Delivered'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                           : ord.orderStatus === 'Shipped'
-                          ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                          ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20'
                           : ord.orderStatus === 'Cancelled'
-                          ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                          ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                          : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                       }`}
                     >
+                      <span className={`h-1 w-1 rounded-full ${
+                        ord.orderStatus === 'Delivered' ? 'bg-emerald-500' :
+                        ord.orderStatus === 'Shipped' ? 'bg-indigo-500' :
+                        ord.orderStatus === 'Cancelled' ? 'bg-rose-500' : 'bg-amber-500'
+                      }`} />
                       {ord.orderStatus}
                     </span>
                   </td>
-                  <td className="py-3 px-2">
-                    <span className="font-medium text-slate-600 dark:text-slate-300">{ord.paymentStatus}</span>
-                  </td>
-                  <td className="py-3 px-2 text-right text-slate-400 text-[11px]">
-                    {new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <td className="py-4 px-3 text-right text-slate-500 font-medium">
+                    {new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                   </td>
                 </tr>
               ))}
