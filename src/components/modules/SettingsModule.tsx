@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Sliders,
   Store,
@@ -12,21 +12,13 @@ import {
   Sun,
   Moon,
   Palette,
-  ShieldCheck,
-  Smartphone,
-  Loader2,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
-import { api } from '../../api';
 
 export const SettingsModule: React.FC = () => {
-  const { settings, updateSettings, addToast, darkMode, toggleDarkMode, user } = useAdmin();
-  const [activeTab, setActiveTab] = useState<'store' | 'tax' | 'notifications' | 'appearance' | 'api' | 'security'>('store');
-  const [totpEnabled, setTotpEnabled] = useState(false);
-  const [totpLoading, setTotpLoading] = useState(false);
-  const [totpSetupData, setTotpSetupData] = useState<{ secret: string; uri: string; qr?: string } | null>(null);
-  const [totpCode, setTotpCode] = useState('');
-  const [totpError, setTotpError] = useState('');
+  const { settings, updateSettings, addToast, darkMode, toggleDarkMode } = useAdmin();
+
+  const [activeTab, setActiveTab] = useState<'store' | 'tax' | 'notifications' | 'appearance' | 'api'>('store');
   const [formData, setFormData] = useState({
     ...settings,
     notifications: settings.notifications || {},
@@ -35,35 +27,6 @@ export const SettingsModule: React.FC = () => {
   // API Keys list
   const [apiKeys, setApiKeys] = useState(settings.apiKeys || []);
   const [newKeyName, setNewKeyName] = useState('');
-
-  useEffect(() => {
-    let ignore = false;
-
-    if (!user?.email) {
-      setTotpEnabled(false);
-      setTotpSetupData(null);
-      return;
-    }
-
-    const loadTotpStatus = async () => {
-      try {
-        const response = await api.totpStatus(user.email!);
-        if (!ignore) {
-          setTotpEnabled(Boolean(response?.enabled));
-        }
-      } catch (error) {
-        if (!ignore) {
-          setTotpEnabled(false);
-        }
-      }
-    };
-
-    loadTotpStatus();
-
-    return () => {
-      ignore = true;
-    };
-  }, [user?.email]);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,58 +45,6 @@ export const SettingsModule: React.FC = () => {
     setApiKeys([...apiKeys, newKey]);
     setNewKeyName('');
     addToast({ type: 'success', title: 'API Key Generated', message: `Key created for ${newKeyName}` });
-  };
-
-  const handleTotpSetup = async () => {
-    if (!user?.email) {
-      addToast({ type: 'error', title: 'Admin email required', message: 'Please sign in again to connect an authenticator app.' });
-      return;
-    }
-
-    setTotpLoading(true);
-    setTotpError('');
-    setTotpSetupData(null);
-
-    try {
-      const response = await api.totpSetup(user.email);
-      setTotpSetupData(response);
-      setTotpCode('');
-    } catch (error: any) {
-      setTotpError(error?.message || 'Unable to start TOTP setup.');
-      addToast({ type: 'error', title: 'TOTP setup failed', message: error?.message || 'Unable to start TOTP setup.' });
-    } finally {
-      setTotpLoading(false);
-    }
-  };
-
-  const handleTotpConfirm = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!user?.email) {
-      addToast({ type: 'error', title: 'Admin email required', message: 'Please sign in again to finish the setup.' });
-      return;
-    }
-
-    if (!totpCode.trim()) {
-      setTotpError('Enter the 6-digit code from your authenticator app.');
-      return;
-    }
-
-    setTotpLoading(true);
-    setTotpError('');
-
-    try {
-      await api.totpConfirm(user.email, totpCode.trim());
-      setTotpEnabled(true);
-      setTotpSetupData(null);
-      setTotpCode('');
-      addToast({ type: 'success', title: 'TOTP enabled', message: 'Your authenticator app is now connected.' });
-    } catch (error: any) {
-      setTotpError(error?.message || 'The verification code was invalid.');
-      addToast({ type: 'error', title: 'Verification failed', message: error?.message || 'The verification code was invalid.' });
-    } finally {
-      setTotpLoading(false);
-    }
   };
 
   return (
@@ -158,7 +69,6 @@ export const SettingsModule: React.FC = () => {
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'appearance', label: 'Theme & Styling', icon: Palette },
             { id: 'api', label: 'Developer API Keys', icon: Key },
-            { id: 'security', label: 'Security', icon: ShieldCheck },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -348,91 +258,6 @@ export const SettingsModule: React.FC = () => {
           </div>
         )}
 
-        {/* Security View */}
-        {activeTab === 'security' && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" /> Two-Factor Authentication
-                </h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Connect an authenticator app such as Google Authenticator or Microsoft Authenticator to secure this admin account.
-                </p>
-              </div>
-              <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${totpEnabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'}`}>
-                <Smartphone className="h-3.5 w-3.5" />
-                {totpEnabled ? 'TOTP connected' : 'TOTP not connected'}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/60">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-bold text-slate-800 dark:text-white">Admin email</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{user?.email || 'Sign in again to connect your authenticator app.'}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTotpSetup}
-                  disabled={totpLoading || !user?.email}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {totpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-                  {totpEnabled ? 'Reconnect TOTP App' : 'Connect TOTP App'}
-                </button>
-              </div>
-
-              {totpError && <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">{totpError}</p>}
-
-              {totpSetupData && (
-                <div className="mt-4 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                    {totpSetupData.qr ? (
-                      <img src={totpSetupData.qr} alt="TOTP QR code" className="h-44 w-44 rounded-xl object-contain mx-auto" />
-                    ) : (
-                      <div className="flex h-44 w-44 items-center justify-center rounded-xl border border-dashed border-slate-300 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        QR code unavailable
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Scan this QR code</p>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Or enter the secret manually in your authenticator app.</p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Manual secret</p>
-                      <p className="mt-2 break-all font-mono text-sm text-slate-700 dark:text-slate-200">{totpSetupData.secret}</p>
-                    </div>
-                    <form onSubmit={handleTotpConfirm} className="space-y-3">
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Enter 6-digit verification code</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        value={totpCode}
-                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456"
-                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                      />
-                      <button
-                        type="submit"
-                        disabled={totpLoading}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white shadow-md hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {totpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        Verify & Enable TOTP
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* API Keys View */}
         {activeTab === 'api' && (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900 space-y-4">
@@ -469,16 +294,14 @@ export const SettingsModule: React.FC = () => {
           </div>
         )}
 
-        {activeTab !== 'security' && (
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 font-extrabold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700"
-            >
-              <Save className="h-4 w-4" /> Save Preferences
-            </button>
-          </div>
-        )}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            className="flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 font-extrabold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700"
+          >
+            <Save className="h-4 w-4" /> Save Preferences
+          </button>
+        </div>
       </form>
     </div>
   );
