@@ -30,6 +30,7 @@ model Product {
   tags               Json?
   variants           Json?
   seo                Json?
+  specifications     Json?
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

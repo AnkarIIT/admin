@@ -22,8 +22,9 @@ import {
   Star,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
-import { Product, ProductVariant, SEOData } from '../../types';
+import { Product, ProductVariant, SEOData, ProductSpecifications } from '../../types';
 import { fileToDataUrl } from '../../lib/imageUpload';
+import { DEFAULT_SPECS } from '../../api';
 
 export const ProductModule: React.FC = () => {
   const {
@@ -79,6 +80,7 @@ export const ProductModule: React.FC = () => {
       slug: '',
       keywords: ['gear', 'tech'],
     } as SEOData,
+    specifications: DEFAULT_SPECS as ProductSpecifications,
   });
 
   // Filter products
@@ -119,6 +121,7 @@ export const ProductModule: React.FC = () => {
         slug: '',
         keywords: ['lifestyle', 'gear'],
       },
+      specifications: DEFAULT_SPECS as ProductSpecifications,
     });
     setIsAddModalOpen(true);
   };
@@ -142,6 +145,7 @@ export const ProductModule: React.FC = () => {
       tags: product.tags,
       variants: product.variants,
       seo: product.seo,
+      specifications: product.specifications || (DEFAULT_SPECS as ProductSpecifications),
     });
     setIsAddModalOpen(true);
   };
@@ -171,6 +175,9 @@ export const ProductModule: React.FC = () => {
     }
     setIsAddModalOpen(false);
   };
+
+  const updateSpecs = (patch: Partial<ProductSpecifications>) =>
+    setFormData((prev) => ({ ...prev, specifications: { ...prev.specifications, ...patch } }));
 
   const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -793,6 +800,138 @@ export const ProductModule: React.FC = () => {
                 ) : (
                   <p className="mt-1 text-[11px] text-slate-400">No variants yet. Add sizes/colors if the product has variations.</p>
                 )}
+              </div>
+
+              {/* Technical Specifications & Print Details */}
+              <div className="rounded-2xl border border-slate-200 p-4 space-y-4 dark:border-slate-800">
+                <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300">
+                  <Layers className="h-4 w-4 text-indigo-500" /> Technical Specifications & Print Details
+                </label>
+
+                {/* Made to Order */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
+                  <div>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Made to Order</p>
+                    <p className="text-[11px] text-slate-400">Shown as a badge on the product page</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!formData.specifications?.madeToOrder}
+                    onClick={() => updateSpecs({ madeToOrder: !formData.specifications?.madeToOrder })}
+                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                      formData.specifications?.madeToOrder ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                        formData.specifications?.madeToOrder ? 'left-[18px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Production Time</label>
+                  <input
+                    type="text"
+                    value={formData.specifications?.productionTime || ''}
+                    onChange={(e) => updateSpecs({ productionTime: e.target.value })}
+                    placeholder="Ships within 3-5 days"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                {/* Fixed spec fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Material</label>
+                    <input
+                      type="text"
+                      value={formData.specifications?.material || ''}
+                      onChange={(e) => updateSpecs({ material: e.target.value })}
+                      placeholder="PLA"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Dimensions</label>
+                    <input
+                      type="text"
+                      value={formData.specifications?.dimensions || ''}
+                      onChange={(e) => updateSpecs({ dimensions: e.target.value })}
+                      placeholder="20x15x8cm"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Print Time</label>
+                    <input
+                      type="text"
+                      value={formData.specifications?.printTime || ''}
+                      onChange={(e) => updateSpecs({ printTime: e.target.value })}
+                      placeholder="6 hours"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Infill</label>
+                    <input
+                      type="text"
+                      value={formData.specifications?.infill || ''}
+                      onChange={(e) => updateSpecs({ infill: e.target.value })}
+                      placeholder="20%"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Layer Height</label>
+                    <input
+                      type="text"
+                      value={formData.specifications?.layerHeight || ''}
+                      onChange={(e) => updateSpecs({ layerHeight: e.target.value })}
+                      placeholder="0.2mm"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex items-end pb-0.5">
+                    <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Support Material</p>
+                        <p className="text-[11px] text-slate-400">{formData.specifications?.supportRequired ? 'Yes' : 'No'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!!formData.specifications?.supportRequired}
+                        onClick={() => updateSpecs({ supportRequired: !formData.specifications?.supportRequired })}
+                        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                          formData.specifications?.supportRequired ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                            formData.specifications?.supportRequired ? 'left-[18px]' : 'left-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Durability rating */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Durability Rating</label>
+                  <select
+                    value={formData.specifications?.durabilityRating || ''}
+                    onChange={(e) => updateSpecs({ durabilityRating: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="light-use">Light Use</option>
+                    <option value="moderate-use">Moderate Use</option>
+                    <option value="heavy-use">Heavy Use</option>
+                  </select>
+                </div>
               </div>
 
               {/* SEO Metadata */}

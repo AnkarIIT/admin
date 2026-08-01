@@ -16,6 +16,7 @@ import { CMSModule } from './components/modules/CMSModule';
 import { MarketingModule } from './components/modules/MarketingModule';
 import { StaffModule } from './components/modules/StaffModule';
 import { SettingsModule } from './components/modules/SettingsModule';
+import { IntegrationsModule } from './components/modules/IntegrationsModule';
 import { RestrictedAccess } from './components/common/RestrictedAccess';
 import { canAccessTab } from './lib/roles';
 
@@ -30,6 +31,7 @@ const MainLayout: React.FC = () => {
     'users-roles': 'Staff Roles & Security',
     inventory: 'Inventory & Warehouses',
     'payment-shipping': 'Payment & Shipping',
+    integrations: 'API Services & Gateways',
   };
   const allowed = user ? canAccessTab(user.role, currentTab) : true;
   const restrictedLabel = restrictedLabels[currentTab];
@@ -55,6 +57,7 @@ const MainLayout: React.FC = () => {
           {allowed && currentTab === 'marketing' && <MarketingModule />}
           {allowed && (currentTab === 'staff' || currentTab === 'users-roles') && <StaffModule />}
           {allowed && currentTab === 'settings' && <SettingsModule />}
+          {allowed && currentTab === 'integrations' && <IntegrationsModule />}
           {!allowed && <RestrictedAccess label={restrictedLabel} />}
         </main>
       </div>

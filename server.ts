@@ -7,6 +7,12 @@ import helmet from "helmet";
 import { z } from "zod";
 import prisma from "./lib/prisma";
 import {
+  INTEGRATION_REGISTRY,
+  buildPublicIntegration,
+  readIntegrationsStore,
+  writeIntegrationsStore,
+} from "./lib/integrations";
+import {
   checkRateLimit,
   clearLoginRateLimit,
   currentSession,
@@ -336,6 +342,7 @@ const productSchema = z.object({
   tags: z.array(z.string().trim().max(50)).max(50).optional(),
   variants: z.array(z.any()).max(200).optional(),
   seo: z.record(z.string(), z.any()).optional(),
+  specifications: z.any().optional(),
 });
 
 const orderUpdateSchema = z.object({
@@ -390,6 +397,7 @@ app.post("/api/products", async (req, res) => {
         tags: parsed.tags ?? [],
         variants: parsed.variants ?? [],
         seo: parsed.seo ?? {},
+        specifications: parsed.specifications ?? {},
       },
     });
     res.status(201).json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price), cost_price: num(product.cost_price) });
@@ -424,6 +432,7 @@ app.patch("/api/products/:id", async (req, res) => {
     if (parsed.tags !== undefined) data.tags = parsed.tags;
     if (parsed.variants !== undefined) data.variants = parsed.variants;
     if (parsed.seo !== undefined) data.seo = parsed.seo;
+    if (parsed.specifications !== undefined) data.specifications = parsed.specifications;
     const product = await prisma.product.update({ where: { id: req.params.id }, data });
     res.json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price), cost_price: num(product.cost_price) });
   } catch (e: any) {
@@ -921,6 +930,53 @@ app.delete("/api/coupons/:code", async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     handleError(res, e, "DELETE /api/coupons/:code");
+  }
+});
+
+// ---- Integrations (API services & gateways; super admin only) ----
+// Admin can only enable/disable a service. Gateway wiring (API keys, webhooks)
+// is owned by the developer via env vars / storefront code.
+const integrationPatchSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+
+app.get("/api/integrations", async (req, res) => {
+  try {
+    if (!(await requireSuperAdmin(req, res))) return;
+    const store = await readIntegrationsStore();
+    res.json(INTEGRATION_REGISTRY.map((def) => buildPublicIntegration(def, store[def.id])));
+  } catch (e: any) {
+    handleError(res, e, "GET /api/integrations");
+  }
+});
+
+app.patch("/api/integrations/:id", async (req, res) => {
+  try {
+    if (!(await requireSuperAdmin(req, res))) return;
+    const def = INTEGRATION_REGISTRY.find((d) => d.id === req.params.id);
+    if (!def) return res.status(404).json({ error: "Unknown integration" });
+    const parsed = integrationPatchSchema.parse(req.body);
+
+    const store = await readIntegrationsStore();
+    const next = { enabled: parsed.enabled, updatedAt: new Date().toISOString() };
+    store[def.id] = next;
+    await writeIntegrationsStore(store);
+
+    await prisma.audit_logs.create({
+      data: {
+        admin_id: (req as any).userId ?? null,
+        action: "integration_toggled",
+        details: { module: "Integrations", id: def.id, enabled: next.enabled },
+        ip_address: clientIp(req),
+      },
+    });
+
+    res.json(buildPublicIntegration(def, next));
+  } catch (e: any) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
+    handleError(res, e, "PATCH /api/integrations/:id");
   }
 });
 

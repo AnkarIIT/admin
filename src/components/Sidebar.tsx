@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Store,
   Lock,
+  Plug,
 } from 'lucide-react';
 import { useAdmin, TabType } from '../context/AdminContext';
 import { canAccessTab, RESTRICTED_MESSAGE } from '../lib/roles';
@@ -71,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileMenuOpen = false, setMob
     { id: 'cms', label: 'CMS & Page Builder', icon: FileText, category: 'Storefront' },
     { id: 'marketing', label: 'Marketing & Coupons', icon: Megaphone, category: 'Storefront' },
     { id: 'staff', label: 'Staff Roles & Security', icon: UserCheck, category: 'System' },
+    { id: 'integrations', label: 'API Services & Gateways', icon: Plug, category: 'System' },
     { id: 'settings', label: 'Store Settings', icon: Settings, category: 'System' },
   ];
 

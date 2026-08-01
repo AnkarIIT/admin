@@ -55,6 +55,7 @@ const ALL_TABS: TabType[] = [
   'staff',
   'users-roles',
   'settings',
+  'integrations',
 ];
 
 const TAB_ACCESS: Record<RoleKey, TabType[]> = {

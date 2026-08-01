@@ -1,4 +1,16 @@
-import type { ActivityLog, Coupon, Order, Product, StaffUser, StoreSettings } from './types';
+import type { ActivityLog, Coupon, Integration, Order, Product, ProductSpecifications, StaffUser, StoreSettings } from './types';
+
+export const DEFAULT_SPECS: ProductSpecifications = {
+  material: 'PLA',
+  dimensions: 'Varies by design',
+  printTime: 'Varies by size',
+  infill: '20%',
+  layerHeight: '0.2mm',
+  supportRequired: true,
+  productionTime: 'Ships within 3-5 days',
+  durabilityRating: 'moderate-use',
+  madeToOrder: true,
+};
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -88,6 +100,10 @@ export const api = {
   deleteCoupon: (code: string) =>
     request<{ success: boolean }>(`/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
+  getIntegrations: () => request<Integration[]>('/integrations'),
+  updateIntegration: (id: string, enabled: boolean) =>
+    request<Integration>(`/integrations/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+
   totpStatus: (email?: string) => request<{ enabled: boolean }>(`/auth/totp-status${email ? `?email=${encodeURIComponent(email)}` : ''}`),
   totpSetup: (email?: string, force?: boolean) =>
     request<{ secret: string; uri: string; qr: string }>('/auth/totp-setup', { method: 'POST', body: JSON.stringify({ email, force }) }),
@@ -117,6 +133,11 @@ export async function checkAuth(): Promise<AuthUser | null> {
 export function mapDbProduct(p: Record<string, any>): Product {
   const price = Number(p.base_price) || 0;
   const seoRaw = p.seo && typeof p.seo === 'object' ? p.seo : {};
+  const specsRaw = p.specifications && typeof p.specifications === 'object' ? p.specifications : {};
+  const specifications: ProductSpecifications = {
+    ...DEFAULT_SPECS,
+    ...specsRaw,
+  };
   return {
     id: p.id,
     name: p.name,
@@ -139,6 +160,7 @@ export function mapDbProduct(p: Record<string, any>): Product {
       slug: seoRaw.slug || p.slug,
       keywords: Array.isArray(seoRaw.keywords) ? seoRaw.keywords : [],
     },
+    specifications,
     createdAt: p.createdAt ? p.createdAt.substring(0, 10) : '',
     updatedAt: p.updatedAt ? p.updatedAt.substring(0, 10) : '',
     sku: p.sku || p.slug || p.id,

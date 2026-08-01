@@ -23,6 +23,7 @@ import {
   CustomerReview,
   StockAdjustmentLog,
   AbandonedCart,
+  Integration,
 } from '../types';
 import {
   api,
@@ -45,7 +46,8 @@ export type TabType =
   | 'marketing'
   | 'staff'
   | 'users-roles'
-  | 'settings';
+  | 'settings'
+  | 'integrations';
 
 interface Toast {
   id: string;
@@ -177,6 +179,10 @@ interface AdminContextType {
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   logActivity: (action: string, module: string) => void;
 
+  // Integrations
+  integrations: Integration[];
+  updateIntegration: (id: string, enabled: boolean) => Promise<boolean>;
+
   // State Reset & Export
   resetToDefaults: () => Promise<void>;
   exportBackupJSON: () => void;
@@ -230,6 +236,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
 
   // Sync Dark Mode class on <html>
   useEffect(() => {
@@ -279,13 +286,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const loadAllData = useCallback(async () => {
     try {
-      const [productsRes, ordersRes, staffRes, logsRes, settingsRes, couponsRes] = await Promise.all([
+      const [productsRes, ordersRes, staffRes, logsRes, settingsRes, couponsRes, integrationsRes] = await Promise.all([
         api.getProducts(),
         api.getOrders(),
         api.getStaff(),
         api.getActivityLogs(),
         api.getSettings(),
         api.getCoupons(),
+        api.getIntegrations().catch(() => []),
       ]);
       const mappedProducts = (productsRes || []).map(mapDbProduct);
       const mappedOrders = (ordersRes || []).map(mapDbOrder);
@@ -297,6 +305,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActivityLogs(logsRes || []);
       setSettings((prev) => ({ ...prev, ...(settingsRes || {}) }));
       setCoupons(couponsRes || []);
+      setIntegrations(integrationsRes || []);
     } catch (e: any) {
       addToast({ type: 'error', title: 'Failed to load data', message: e.message || 'Database unreachable' });
     } finally {
@@ -383,6 +392,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setStaffUsers([]);
     setActivityLogs([]);
     setSettings(DEFAULT_SETTINGS);
+    setIntegrations([]);
     setCurrentTab('dashboard');
     setSearchQuery('');
     setPrintingOrder(null);
@@ -409,6 +419,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         tags: productData.tags || [],
         variants: productData.variants || [],
         seo: productData.seo || {},
+        specifications: productData.specifications || {},
       });
       const newProduct: Product = {
         ...mapDbProduct(created),
@@ -454,6 +465,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (updates.tags !== undefined) payload.tags = updates.tags;
       if (updates.variants !== undefined) payload.variants = updates.variants;
       if (updates.seo !== undefined) payload.seo = updates.seo;
+      if (updates.specifications !== undefined) payload.specifications = updates.specifications;
       const updated = await api.updateProduct(id, payload);
       const mapped = mapDbProduct(updated);
       setProducts((prev) =>
@@ -899,6 +911,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateSettings = updateStoreSettings;
 
+  const updateIntegration = async (id: string, enabled: boolean) => {
+    try {
+      const updated = await api.updateIntegration(id, enabled);
+      setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)));
+      addToast({ type: 'success', title: enabled ? 'Service enabled' : 'Service disabled', message: `${updated.name} is now ${enabled ? 'ON' : 'OFF'}.` });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Save Failed', message: e.message });
+      return false;
+    }
+  };
+
   const resetToDefaults = async () => {
     await loadAllData();
     addToast({ type: 'info', title: 'Data Reloaded', message: 'Fetched latest data from database.' });
@@ -972,6 +996,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         staffUsers,
         activityLogs,
         settings,
+        integrations,
 
         addProduct,
         updateProduct,
@@ -1012,6 +1037,8 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateStoreSettings,
         updateSettings,
         logActivity,
+
+        updateIntegration,
 
         resetToDefaults,
         exportBackupJSON,
