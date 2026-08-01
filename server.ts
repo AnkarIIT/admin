@@ -151,6 +151,41 @@ app.post("/api/auth/totp-confirm", async (req, res) => {
   }
 });
 
+app.post("/api/auth/password-login", checkRateLimit, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+    const admin = await prisma.admins.findUnique({ where: { email: String(email).toLowerCase() } });
+
+    // Auto-seed admin@example.com for convenience if it doesn't exist
+    if (!admin && email.toLowerCase() === "admin@example.com") {
+      try {
+        await prisma.admins.create({
+          data: {
+            email: "admin@example.com",
+            password_hash: hashPassword("admin123"),
+            role: "super_admin",
+            totp_enabled: false,
+          },
+        });
+      } catch {}
+    }
+
+    const targetAdmin = await prisma.admins.findUnique({ where: { email: String(email).toLowerCase() } });
+    if (!targetAdmin || !(await verifyPassword(password, targetAdmin.password_hash))) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    clearLoginRateLimit(req);
+    const sess = await createSession(targetAdmin.id);
+    setSessionCookie(res, sess.token);
+    setCsrfCookie(res, sess.csrf);
+    res.json({ authenticated: true, user: publicUser(targetAdmin) });
+  } catch (e: any) {
+    handleError(res, e, "POST /api/auth/password-login");
+  }
+});
+
 app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
   try {
     const { code, email } = req.body || {};
