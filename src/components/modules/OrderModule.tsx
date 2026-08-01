@@ -168,7 +168,7 @@ export const OrderModule: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-3 font-black text-slate-900 dark:text-white">
-                        ${ord.total.toFixed(2)}
+                        ₹{ord.total.toFixed(2)}
                       </td>
 
                       <td className="py-3.5 px-3">
@@ -284,7 +284,7 @@ export const OrderModule: React.FC = () => {
                       <p className="font-bold text-slate-900 dark:text-white">{item.name}</p>
                       <p className="text-[10px] text-slate-400">SKU: {item.sku} • Qty: {item.quantity}</p>
                     </div>
-                    <span className="font-extrabold text-slate-900 dark:text-white">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="font-extrabold text-slate-900 dark:text-white">₹{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>

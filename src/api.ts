@@ -65,6 +65,11 @@ export const api = {
     request<Record<string, any>>(`/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   getStaff: () => request<StaffUser[]>('/staff'),
+  createStaff: (data: { name: string; email: string; role: string; password?: string }) =>
+    request<{ user: StaffUser; credentials: { email: string; password: string } }>('/staff', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   getActivityLogs: () => request<ActivityLog[]>('/activity-logs'),
   logActivity: (data: { action: string; module: string }) =>
     request<{ success: boolean }>('/activity-logs', { method: 'POST', body: JSON.stringify(data) }),
@@ -107,30 +112,32 @@ export async function checkAuth(): Promise<AuthUser | null> {
 
 export function mapDbProduct(p: Record<string, any>): Product {
   const price = Number(p.base_price) || 0;
-  const compare = p.discounted_price != null ? Number(p.discounted_price) : undefined;
+  const seoRaw = p.seo && typeof p.seo === 'object' ? p.seo : {};
   return {
     id: p.id,
     name: p.name,
     category: p.category || 'Uncategorized',
-    tags: [],
+    subcategory: p.subcategory || '',
+    tags: Array.isArray(p.tags) ? p.tags : [],
     price,
-    compareAtPrice: compare,
-    costPrice: price,
-    stock: 0,
-    lowStockThreshold: 10,
-    status: 'Active',
-    images: [],
+    compareAtPrice: p.discounted_price != null ? Number(p.discounted_price) : undefined,
+    costPrice: p.cost_price != null ? Number(p.cost_price) : price,
+    stock: typeof p.stock === 'number' ? p.stock : 0,
+    lowStockThreshold: typeof p.lowStockThreshold === 'number' ? p.lowStockThreshold : 0,
+    status: p.status || 'Active',
+    images: Array.isArray(p.images) ? p.images : [],
+    videoUrl: p.videoUrl || '',
     description: p.description || '',
-    variants: [],
+    variants: Array.isArray(p.variants) ? p.variants : [],
     seo: {
-      title: p.name,
-      description: p.description || '',
-      slug: p.slug,
-      keywords: [],
+      title: seoRaw.title || p.name,
+      description: seoRaw.description || p.description || '',
+      slug: seoRaw.slug || p.slug,
+      keywords: Array.isArray(seoRaw.keywords) ? seoRaw.keywords : [],
     },
     createdAt: p.createdAt ? p.createdAt.substring(0, 10) : '',
     updatedAt: p.updatedAt ? p.updatedAt.substring(0, 10) : '',
-    sku: p.slug || p.id,
+    sku: p.sku || p.slug || p.id,
     salesCount: 0,
     rating: 5,
     reviewCount: 0,
@@ -150,6 +157,9 @@ const DB_ORDER_STATUS: Record<string, Order['orderStatus']> = {
 const DB_PAYMENT_STATUS: Record<string, Order['paymentStatus']> = {
   paid: 'Paid',
   success: 'Paid',
+  confirmed: 'Paid',
+  shipped: 'Paid',
+  delivered: 'Paid',
   pending: 'Pending',
   pending_payment: 'Pending',
   refunded: 'Refunded',
@@ -163,7 +173,7 @@ function parseShipping(addr: string | null | undefined, customerName: string, cu
       street: a.street || a.fullName || '',
       city: a.city || '',
       state: a.state || '',
-      zip: a.pincode || a.pincode || '',
+      zip: a.zip || a.pincode || '',
       country: a.country || '',
     };
   } catch {
@@ -217,6 +227,8 @@ export function deriveCustomers(orders: Order[]) {
     const existing = map.get(o.customerEmail);
     const spent = existing ? existing.totalSpent + o.total : o.total;
     const count = existing ? existing.totalOrders + 1 : 1;
+    const joined = existing && existing.joinedDate < o.createdAt ? existing.joinedDate : o.createdAt;
+    const last = existing && existing.lastOrderDate > o.createdAt ? existing.lastOrderDate : o.createdAt;
     map.set(o.customerEmail, {
       id: o.customerEmail,
       name: o.customerName,
@@ -227,10 +239,10 @@ export function deriveCustomers(orders: Order[]) {
       totalSpent: spent,
       averageOrderValue: spent / count,
       wishlistCount: 0,
-      segment: 'Repeat Buyer',
+      segment: count > 5 ? 'VIP' : count > 1 ? 'Repeat Buyer' : 'New Signup',
       status: 'Active',
-      joinedDate: o.createdAt,
-      lastOrderDate: o.createdAt,
+      joinedDate: joined,
+      lastOrderDate: last,
     });
   }
   return Array.from(map.values());

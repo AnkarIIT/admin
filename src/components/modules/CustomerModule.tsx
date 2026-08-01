@@ -170,7 +170,7 @@ export const CustomerModule: React.FC = () => {
                           </td>
 
                           <td className="py-3.5 px-3 font-extrabold text-emerald-600 dark:text-emerald-400">
-                            ${c.totalSpent.toFixed(2)}
+                            ₹{c.totalSpent.toFixed(2)}
                           </td>
 
                           <td className="py-3.5 px-3">
@@ -217,13 +217,13 @@ export const CustomerModule: React.FC = () => {
                   <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/50">
                     <span className="text-[10px] text-slate-400 font-bold uppercase">Lifetime Value</span>
                     <p className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-                      ${selectedCustomer.totalSpent.toFixed(2)}
+                      ₹{selectedCustomer.totalSpent.toFixed(2)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/50">
                     <span className="text-[10px] text-slate-400 font-bold uppercase">Avg Order Value</span>
                     <p className="text-base font-black text-slate-900 dark:text-white mt-0.5">
-                      ${selectedCustomer.averageOrderValue.toFixed(2)}
+                      ₹{selectedCustomer.averageOrderValue.toFixed(2)}
                     </p>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sliders,
   Store,
@@ -19,14 +19,34 @@ export const SettingsModule: React.FC = () => {
   const { settings, updateSettings, addToast, darkMode, toggleDarkMode } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<'store' | 'tax' | 'notifications' | 'appearance' | 'api'>('store');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     ...settings,
-    notifications: settings.notifications || {},
-  });
+    notifications: { ...(settings.notifications || {}) },
+    apiKeys: settings.apiKeys || [],
+  }));
 
   // API Keys list
-  const [apiKeys, setApiKeys] = useState(settings.apiKeys || []);
   const [newKeyName, setNewKeyName] = useState('');
+
+  // Keep the form in sync with freshly loaded settings so the first "Save"
+  // never overwrites saved configuration with stale defaults.
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      ...settings,
+      notifications: { ...(settings.notifications || {}) },
+      apiKeys: settings.apiKeys || prev.apiKeys || [],
+    }));
+  }, [settings]);
+
+  // Keep the currency symbol in sync with the selected currency.
+  useEffect(() => {
+    const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', INR: '₹' };
+    setFormData((prev) => ({
+      ...prev,
+      currencySymbol: symbols[prev.currency] || prev.currencySymbol || '₹',
+    }));
+  }, [formData.currency]);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +62,7 @@ export const SettingsModule: React.FC = () => {
       key: 'omni_live_sk_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
       created: new Date().toISOString().substring(0, 10),
     };
-    setApiKeys([...apiKeys, newKey]);
+    setFormData((prev) => ({ ...prev, apiKeys: [...(prev.apiKeys || []), newKey] }));
     setNewKeyName('');
     addToast({ type: 'success', title: 'API Key Generated', message: `Key created for ${newKeyName}` });
   };
@@ -164,7 +184,10 @@ export const SettingsModule: React.FC = () => {
                   type="number"
                   step="0.1"
                   value={formData.taxRate}
-                  onChange={(e) => setFormData({ ...formData, taxRate: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setFormData({ ...formData, taxRate: Math.min(100, Math.max(0, v)) });
+                  }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                 />
               </div>
@@ -281,7 +304,12 @@ export const SettingsModule: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {apiKeys.map((k) => (
+              {(formData.apiKeys || []).length === 0 && (
+                <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-800/40">
+                  No API keys yet. Generate one above — it will be saved with your store settings.
+                </p>
+              )}
+              {(formData.apiKeys || []).map((k) => (
                 <div key={k.id} className="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 dark:bg-slate-800/60 font-mono">
                   <div>
                     <p className="font-bold text-slate-900 dark:text-white font-sans">{k.name}</p>
