@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { Product, ProductVariant, SEOData, ProductSpecifications } from '../../types';
-import { fileToDataUrl } from '../../lib/imageUpload';
+import { fileToDataUrl, filesToDataUrls, MAX_UPLOAD_BYTES } from '../../lib/imageUpload';
 import { DEFAULT_SPECS } from '../../api';
 
 export const ProductModule: React.FC = () => {
@@ -182,24 +182,34 @@ export const ProductModule: React.FC = () => {
   const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    try {
-      const dataUrls = await Promise.all(files.slice(0, MAX_IMAGES).map((f) => fileToDataUrl(f)));
-      setFormData((prev) => {
-        const current = prev.images.filter(Boolean);
-        const remaining = MAX_IMAGES - current.length;
-        if (remaining <= 0) {
-          addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
-          return prev;
-        }
-        const add = dataUrls.slice(0, remaining);
-        if (files.length > remaining) {
-          addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
-        }
-        return { ...prev, images: [...current, ...add] };
+    const { dataUrls, errors } = await filesToDataUrls(files.slice(0, MAX_IMAGES), {
+      maxBytes: MAX_UPLOAD_BYTES,
+      types: ['image/'],
+    });
+    if (errors.length) {
+      addToast({
+        type: 'warning',
+        title: 'Some files were skipped',
+        message: errors.map((er) => `${er.fileName}: ${er.message}`).join('; '),
       });
-    } catch (err: any) {
-      addToast({ type: 'error', title: 'Upload failed', message: err.message });
     }
+    if (!dataUrls.length) {
+      e.target.value = '';
+      return;
+    }
+    setFormData((prev) => {
+      const current = prev.images.filter(Boolean);
+      const remaining = MAX_IMAGES - current.length;
+      if (remaining <= 0) {
+        addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
+        return prev;
+      }
+      const add = dataUrls.slice(0, remaining);
+      if (dataUrls.length > remaining) {
+        addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
+      }
+      return { ...prev, images: [...current, ...add] };
+    });
     e.target.value = '';
   };
 
@@ -225,7 +235,7 @@ export const ProductModule: React.FC = () => {
         addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
         return;
       }
-      const dataUrl = await fileToDataUrl(file, 30 * 1024 * 1024, true);
+      const dataUrl = await fileToDataUrl(file, MAX_UPLOAD_BYTES, true);
       setFormData({ ...formData, videoUrl: dataUrl });
       addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
     } catch (err: any) {
@@ -614,7 +624,7 @@ export const ProductModule: React.FC = () => {
                 <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
                   <Upload className="h-6 w-6 text-slate-400" />
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Click to upload multiple images (up to {MAX_IMAGES}) — front, back, side angles
+                    Click to upload multiple images (up to {MAX_IMAGES}, max 30MB each) — front, back, side angles
                   </span>
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
                 </label>

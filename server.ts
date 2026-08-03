@@ -68,7 +68,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "180mb" }));
+app.use(express.json({ limit: "500mb" }));
 
 const handleError = (res: express.Response, e: any, context: string) => {
   console.error(`[${context}]`, e?.message || e);
