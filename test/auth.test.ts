@@ -103,4 +103,28 @@ describe("auth", () => {
     const cookies = (res.headers["set-cookie"] as unknown as string[]) || [];
     expect(cookies[0]).toMatch(/^admin_session=/);
   });
+
+  it("reuses the identical TOTP secret in /api/auth/totp-setup on consecutive calls", async () => {
+    const testSetupEmail = "consecutive-setup-test@example.com";
+    await prisma.admins.upsert({
+      where: { email: testSetupEmail },
+      update: { totp_enabled: false, totp_secret: null },
+      create: {
+        email: testSetupEmail,
+        password_hash: "unused",
+        role: "admin",
+        totp_enabled: false,
+      }
+    });
+
+    const res1 = await request(app).post("/api/auth/totp-setup").send({ email: testSetupEmail });
+    expect(res1.status).toBe(200);
+    expect(res1.body.secret).toBeDefined();
+
+    const firstSecret = res1.body.secret;
+
+    const res2 = await request(app).post("/api/auth/totp-setup").send({ email: testSetupEmail });
+    expect(res2.status).toBe(200);
+    expect(res2.body.secret).toBe(firstSecret);
+  });
 });

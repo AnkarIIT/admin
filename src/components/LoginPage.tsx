@@ -62,14 +62,16 @@ const LoginPage: React.FC = () => {
         const res = await api.totpStatus('');
         if (res.enabled) {
           setEnabled(true);
+          setShowPasswordInput(false);
         } else {
-          const setupRes = await api.totpSetup('');
-          setSetup(setupRes);
+          // If TOTP is disabled, default to password/email login screen instead of setup screen
           setEnabled(false);
+          setShowPasswordInput(true);
         }
       } catch (err: any) {
         setError(err.message || 'Error checking TOTP status');
         setEnabled(false);
+        setShowPasswordInput(true);
       } finally {
         setChecking(false);
       }
@@ -83,6 +85,22 @@ const LoginPage: React.FC = () => {
     setEmail('');
     setPassword('');
     setError('');
+  };
+
+  // Explicitly fetch setup details when user triggers authenticator setup manually
+  const handleTriggerSetup = async () => {
+    setChecking(true);
+    setError('');
+    try {
+      const setupRes = await api.totpSetup('');
+      setSetup(setupRes);
+      setEnabled(false);
+      setShowPasswordInput(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to start authenticator setup');
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -365,14 +383,25 @@ const LoginPage: React.FC = () => {
               </button>
 
               <div className="flex flex-col gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleBackToTotp}
-                  className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Back to TOTP login
-                </button>
+                {enabled ? (
+                  <button
+                    type="button"
+                    onClick={handleBackToTotp}
+                    className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to TOTP login
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleTriggerSetup}
+                    className="mx-auto flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-400 dark:hover:text-white hover:text-slate-900"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    Set up authenticator app
+                  </button>
+                )}
               </div>
             </form>
           ) : !enabled ? (

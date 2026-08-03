@@ -13,8 +13,8 @@ export const InvoicePrinterModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/70 p-4 backdrop-blur-xs">
-      <div className="m-auto w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs overflow-y-auto">
+      <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-8">
         {/* Action Header */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800 print:hidden">
           <div className="flex items-center gap-2">
@@ -112,8 +112,8 @@ export const InvoicePrinterModal: React.FC = () => {
                   <td className="py-3 font-semibold text-slate-900 dark:text-white">{item.name}</td>
                   <td className="py-3 text-slate-500 font-mono">{item.sku}</td>
                   <td className="py-3 text-center font-bold">{item.quantity}</td>
-                  <td className="py-3 text-right">₹{item.price.toFixed(2)}</td>
-                  <td className="py-3 text-right font-bold">₹{(item.price * item.quantity).toFixed(2)}</td>
+                  <td className="py-3 text-right">${item.price.toFixed(2)}</td>
+                  <td className="py-3 text-right font-bold">${(item.price * item.quantity).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -124,25 +124,25 @@ export const InvoicePrinterModal: React.FC = () => {
             <div className="w-64 space-y-2 text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal</span>
-                <span>₹{printingOrder.subtotal.toFixed(2)}</span>
+                <span>${printingOrder.subtotal.toFixed(2)}</span>
               </div>
               {printingOrder.discount > 0 && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                   <span>Discount</span>
-                  <span>-₹{printingOrder.discount.toFixed(2)}</span>
+                  <span>-${printingOrder.discount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Estimated Tax</span>
-                <span>₹{printingOrder.tax.toFixed(2)}</span>
+                <span>${printingOrder.tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Shipping Fee</span>
-                <span>₹{printingOrder.shippingFee.toFixed(2)}</span>
+                <span>${printingOrder.shippingFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-base text-slate-900 dark:text-white">
                 <span>Total Amount</span>
-                <span className="text-indigo-600 dark:text-indigo-400">₹{printingOrder.total.toFixed(2)}</span>
+                <span className="text-indigo-600 dark:text-indigo-400">${printingOrder.total.toFixed(2)}</span>
               </div>
             </div>
           </div>

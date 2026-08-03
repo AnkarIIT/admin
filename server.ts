@@ -138,11 +138,14 @@ app.post("/api/auth/totp-setup", async (req, res) => {
     if (admin.totp_enabled && admin.totp_secret && !force) {
       return res.status(409).json({ error: "TOTP is already enabled" });
     }
-    const secret = generateTotpSecret();
-    await prisma.admins.update({
-      where: { id: admin.id },
-      data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
-    });
+    let secret = admin.totp_secret;
+    if (!secret || force) {
+      secret = generateTotpSecret();
+      await prisma.admins.update({
+        where: { id: admin.id },
+        data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
+      });
+    }
     const uri = totpKeyUri(admin.email, secret);
     const qr = await totpQrDataUrl(uri);
     res.json({ secret, uri, qr });
