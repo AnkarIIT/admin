@@ -164,9 +164,7 @@ interface AdminContextType {
 
   // Roles / Settings
   updateStaffUserRole: (userId: string, roleId: string) => void;
-  addStaffUser: (
-    user: Omit<StaffUser, 'id'> & { password?: string }
-  ) => Promise<{ email: string; password: string } | undefined>;
+  addStaffUser: (user: Omit<StaffUser, 'id'>) => void;
   updateStaffRole: (userId: string, roleName: string) => void;
   updateStoreSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
@@ -247,12 +245,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logActivity = (action: string, module: string) => {
-    const actorEmail = user?.email || 'admin@example.com';
-    const actorName = user?.name || actorEmail.split('@')[0];
     const newLog: ActivityLog = {
       id: 'act-' + Date.now(),
-      user: actorName,
-      userEmail: actorEmail,
+      user: 'Admin',
+      userEmail: 'admin@example.com',
       action,
       module,
       ipAddress: '127.0.0.1',
@@ -322,18 +318,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const res = await api.totpLogin(code, email);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
-      return;
     }
-    throw new Error(res.authenticated ? 'Login succeeded but no user was returned.' : 'Invalid authentication code');
   };
 
   const loginWithPassword = async (email: string, password: string) => {
     const res = await api.passwordLogin(email, password);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
-      return;
     }
-    throw new Error(res.authenticated ? 'Login succeeded but no user was returned.' : 'Invalid email or password');
   };
 
   const completeSetup = async (code: string, email?: string) => {
@@ -351,28 +343,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {}
     setUser(null);
     setProducts([]);
-    setCategories([]);
     setOrders([]);
     setCustomers([]);
-    setReviews([]);
-    setWarehouses([]);
-    setInventoryItems([]);
-    setStockLogs([]);
-    setPaymentGateways([]);
-    setShippingZones([]);
-    setCmsPages([]);
-    setBanners([]);
-    setBlogPosts([]);
-    setCoupons([]);
-    setEmailCampaigns([]);
-    setAbandonedCarts([]);
-    setStaffRoles([]);
     setStaffUsers([]);
     setActivityLogs([]);
-    setSettings(DEFAULT_SETTINGS);
-    setCurrentTab('dashboard');
-    setSearchQuery('');
-    setPrintingOrder(null);
   };
 
   // Product CRUD (persisted to database)
@@ -383,35 +357,10 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         category: productData.category,
         description: productData.description,
         price: productData.price,
-        compareAtPrice: productData.compareAtPrice ?? null,
+        compareAtPrice: productData.compareAtPrice,
         slug: productData.seo?.slug || productData.sku,
-        subcategory: productData.subcategory || null,
-        sku: productData.sku || null,
-        costPrice: productData.costPrice ?? null,
-        stock: productData.stock ?? 0,
-        lowStockThreshold: productData.lowStockThreshold ?? 0,
-        status: productData.status || 'Active',
-        videoUrl: productData.videoUrl || null,
-        images: productData.images || [],
-        tags: productData.tags || [],
-        variants: productData.variants || [],
-        seo: productData.seo || {},
       });
-      const newProduct: Product = {
-        ...mapDbProduct(created),
-        // Preserve client-side-only fields that the DB does not store yet.
-        images: productData.images ?? [],
-        variants: productData.variants ?? [],
-        tags: productData.tags ?? [],
-        stock: productData.stock ?? 0,
-        lowStockThreshold: productData.lowStockThreshold ?? 0,
-        status: productData.status,
-        costPrice: productData.costPrice ?? 0,
-        subcategory: productData.subcategory ?? '',
-        sku: productData.sku ?? '',
-        videoUrl: productData.videoUrl ?? '',
-        seo: productData.seo,
-      };
+      const newProduct = mapDbProduct(created);
       setProducts((prev) => [newProduct, ...prev]);
       setCategories(deriveCategories([newProduct, ...products]));
       logActivity(`Added product "${newProduct.name}"`, 'Products');
@@ -423,46 +372,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
-      const payload: Record<string, any> = {
+      const updated = await api.updateProduct(id, {
         name: updates.name,
         category: updates.category,
         description: updates.description,
         price: updates.price,
-      };
-      if (updates.compareAtPrice !== undefined) payload.compareAtPrice = updates.compareAtPrice ?? null;
-      if (updates.subcategory !== undefined) payload.subcategory = updates.subcategory || null;
-      if (updates.sku !== undefined) payload.sku = updates.sku || null;
-      if (updates.costPrice !== undefined) payload.costPrice = updates.costPrice ?? null;
-      if (updates.stock !== undefined) payload.stock = updates.stock;
-      if (updates.lowStockThreshold !== undefined) payload.lowStockThreshold = updates.lowStockThreshold;
-      if (updates.status !== undefined) payload.status = updates.status;
-      if (updates.videoUrl !== undefined) payload.videoUrl = updates.videoUrl || null;
-      if (updates.images !== undefined) payload.images = updates.images;
-      if (updates.tags !== undefined) payload.tags = updates.tags;
-      if (updates.variants !== undefined) payload.variants = updates.variants;
-      if (updates.seo !== undefined) payload.seo = updates.seo;
-      const updated = await api.updateProduct(id, payload);
-      const mapped = mapDbProduct(updated);
-      setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id !== id) return p;
-          // Preserve client-side-only fields that the DB does not store yet.
-          return {
-            ...mapped,
-            images: updates.images ?? p.images,
-            variants: updates.variants ?? p.variants,
-            tags: updates.tags ?? p.tags,
-            stock: updates.stock ?? p.stock,
-            lowStockThreshold: updates.lowStockThreshold ?? p.lowStockThreshold,
-            status: updates.status ?? p.status,
-            costPrice: updates.costPrice ?? p.costPrice,
-            subcategory: updates.subcategory ?? p.subcategory,
-            sku: updates.sku ?? p.sku,
-            videoUrl: updates.videoUrl ?? p.videoUrl,
-            seo: updates.seo ?? p.seo,
-          };
-        })
-      );
+        compareAtPrice: updates.compareAtPrice,
+        isNew: updates.status === 'Active',
+        isBestseller: false,
+      });
+      setProducts((prev) => prev.map((p) => (p.id === id ? mapDbProduct(updated) : p)));
       logActivity(`Updated product ID ${id}`, 'Products');
       addToast({ type: 'info', title: 'Product Updated', message: 'Changes saved successfully.' });
     } catch (e: any) {
@@ -787,32 +706,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addToast({ type: 'info', title: 'User Role Changed', message: `Permissions updated.` });
   };
 
-  const addStaffUser = async (user: Omit<StaffUser, 'id'> & { password?: string }) => {
-    try {
-      const { user: created, credentials } = await api.createStaff({
-        name: user.name,
-        email: user.email,
-        role: user.roleName,
-        password: user.password,
-      });
-      const newUser: StaffUser = {
-        id: created.id,
-        name: user.name,
-        email: user.email,
-        roleId: created.roleId,
-        roleName: created.roleName,
-        avatar: user.avatar,
-        status: user.status,
-        lastLogin: user.lastLogin,
-      };
-      setStaffUsers((prev) => [...prev, newUser]);
-      logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
-      addToast({ type: 'success', title: 'Staff Added', message: `Account created for ${newUser.email}.` });
-      return credentials;
-    } catch (e: any) {
-      addToast({ type: 'error', title: 'Add Failed', message: e.message });
-      return undefined;
-    }
+  const addStaffUser = (user: Omit<StaffUser, 'id'>) => {
+    const newUser: StaffUser = {
+      ...user,
+      id: 'staff-' + Date.now(),
+    };
+    setStaffUsers((prev) => [...prev, newUser]);
+    logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
+    addToast({ type: 'success', title: 'Staff Added', message: `Invite sent to ${newUser.email}.` });
   };
 
   const updateStaffRole = (userId: string, roleName: string) => {

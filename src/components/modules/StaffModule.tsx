@@ -9,31 +9,12 @@ import {
   Activity,
   UserCheck,
   Search,
-  Wand2,
-  Copy,
-  Check,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { StaffUser } from '../../types';
-import { isSuperAdmin, RESTRICTED_MESSAGE } from '../../lib/roles';
-
-const generateRandomPassword = () => {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnopqrstuvwxyz';
-  const digits = '23456789';
-  const symbols = '@#$%&*!?';
-  const all = upper + lower + digits + symbols;
-  const rand = new Uint32Array(14);
-  crypto.getRandomValues(rand);
-  const pick = (chars: string, i: number) => chars[rand[i] % chars.length];
-  const chars = [pick(upper, 0), pick(lower, 1), pick(digits, 2), pick(symbols, 3)];
-  for (let i = 4; i < 14; i++) chars.push(pick(all, i));
-  return chars.sort(() => Math.random() - 0.5).join('');
-};
 
 export const StaffModule: React.FC = () => {
-  const { staffUsers, activityLogs, addStaffUser, updateStaffRole, user } = useAdmin();
-  const canManageStaff = isSuperAdmin(user?.role);
+  const { staffUsers, activityLogs, addStaffUser, updateStaffRole } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'audit'>('users');
 
@@ -42,26 +23,11 @@ export const StaffModule: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<string>('Store Manager');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
 
-  // Success credentials modal
-  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
-  const [copied, setCopied] = useState<null | 'email' | 'password'>(null);
-
-  const copyToClipboard = async (value: string, field: 'email' | 'password') => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(field);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {}
-  };
-
-  const handleAddStaffSubmit = async (e: React.FormEvent) => {
+  const handleAddStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     if (!name.trim() || !email.trim()) return;
-    const result = await addStaffUser({
+    addStaffUser({
       name,
       email,
       roleId: 'role-2',
@@ -69,16 +35,9 @@ export const StaffModule: React.FC = () => {
       avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
       status: 'Active',
       lastLogin: 'Just now',
-      password: password.trim() || undefined,
     });
-    if (!result) {
-      setError('Could not create the staff member. Check the email and try again.');
-      return;
-    }
-    setCredentials(result);
     setName('');
     setEmail('');
-    setPassword('');
     setModalOpen(false);
   };
 
@@ -134,21 +93,12 @@ export const StaffModule: React.FC = () => {
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            {canManageStaff ? (
-              <button
-                onClick={() => {
-                  setError('');
-                  setModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
-              >
-                <UserPlus className="h-4 w-4" /> Add Staff Member
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
-                <Lock className="h-4 w-4" /> {RESTRICTED_MESSAGE}
-              </div>
-            )}
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
+            >
+              <UserPlus className="h-4 w-4" /> Add Staff Member
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
@@ -266,7 +216,7 @@ export const StaffModule: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Email Address (Login ID)</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Email Address</label>
                 <input
                   type="email"
                   required
@@ -290,38 +240,6 @@ export const StaffModule: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Key className="h-3.5 w-3.5 text-indigo-500" /> Login Credentials (Password)
-                </label>
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  Set a password for this member, or leave blank to auto-generate one.
-                </p>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    type="text"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Auto-generated if blank"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPassword(generateRandomPassword())}
-                    className="flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 font-bold text-indigo-600 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-400 shrink-0"
-                    title="Generate a strong password"
-                  >
-                    <Wand2 className="h-3.5 w-3.5" /> Generate
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">
-                  {error}
-                </p>
-              )}
-
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -335,61 +253,6 @@ export const StaffModule: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Login Credentials Success Modal */}
-      {credentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-emerald-600 mb-1">
-              <CheckCircle2 className="h-5 w-5" />
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Staff Account Created</h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Share these login credentials with the new member. The password is only shown once.
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/60">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Email (Login ID)</label>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="font-mono font-bold text-slate-900 dark:text-white break-all">{credentials.email}</p>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(credentials.email, 'email')}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shrink-0"
-                  >
-                    {copied === 'email' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied === 'email' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/60">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Password</label>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="font-mono font-bold text-slate-900 dark:text-white break-all">{credentials.password}</p>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(credentials.password, 'password')}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shrink-0"
-                  >
-                    {copied === 'password' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied === 'password' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setCredentials(null)}
-              className="mt-4 w-full rounded-xl bg-indigo-600 px-4 py-2.5 font-bold text-white"
-            >
-              Done
-            </button>
           </div>
         </div>
       )}
