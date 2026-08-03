@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { Product, ProductVariant, SEOData, ProductSpecifications } from '../../types';
-import { fileToDataUrl, filesToDataUrls, MAX_UPLOAD_BYTES } from '../../lib/imageUpload';
+import { filesToMediaUrls, uploadFileToStorage } from '../../lib/mediaUpload';
 import { DEFAULT_SPECS } from '../../api';
 
 export const ProductModule: React.FC = () => {
@@ -182,10 +182,7 @@ export const ProductModule: React.FC = () => {
   const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    const { dataUrls, errors } = await filesToDataUrls(files.slice(0, MAX_IMAGES), {
-      maxBytes: MAX_UPLOAD_BYTES,
-      types: ['image/'],
-    });
+    const { urls, errors } = await filesToMediaUrls(files.slice(0, MAX_IMAGES), { types: ['image/'] });
     if (errors.length) {
       addToast({
         type: 'warning',
@@ -193,7 +190,7 @@ export const ProductModule: React.FC = () => {
         message: errors.map((er) => `${er.fileName}: ${er.message}`).join('; '),
       });
     }
-    if (!dataUrls.length) {
+    if (!urls.length) {
       e.target.value = '';
       return;
     }
@@ -204,8 +201,8 @@ export const ProductModule: React.FC = () => {
         addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
         return prev;
       }
-      const add = dataUrls.slice(0, remaining);
-      if (dataUrls.length > remaining) {
+      const add = urls.slice(0, remaining);
+      if (urls.length > remaining) {
         addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
       }
       return { ...prev, images: [...current, ...add] };
@@ -235,8 +232,8 @@ export const ProductModule: React.FC = () => {
         addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
         return;
       }
-      const dataUrl = await fileToDataUrl(file, MAX_UPLOAD_BYTES, true);
-      setFormData({ ...formData, videoUrl: dataUrl });
+      const url = await uploadFileToStorage(file, true);
+      setFormData({ ...formData, videoUrl: url });
       addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
     } catch (err: any) {
       addToast({ type: 'error', title: 'Upload failed', message: err.message });
