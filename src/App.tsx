@@ -16,49 +16,30 @@ import { CMSModule } from './components/modules/CMSModule';
 import { MarketingModule } from './components/modules/MarketingModule';
 import { StaffModule } from './components/modules/StaffModule';
 import { SettingsModule } from './components/modules/SettingsModule';
-import { IntegrationsModule } from './components/modules/IntegrationsModule';
-import { RestrictedAccess } from './components/common/RestrictedAccess';
-import { canAccessTab } from './lib/roles';
 
 const MainLayout: React.FC = () => {
-  const { currentTab, user } = useAdmin();
+  const { currentTab } = useAdmin();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-
-  const restrictedLabels: Partial<Record<string, string>> = {
-    cms: 'CMS & Page Builder',
-    settings: 'Store Settings',
-    staff: 'Staff Roles & Security',
-    'users-roles': 'Staff Roles & Security',
-    inventory: 'Inventory & Warehouses',
-    'payment-shipping': 'Payment & Shipping',
-    integrations: 'API Services & Gateways',
-  };
-  const allowed = user ? canAccessTab(user.role, currentTab) : true;
-  const restrictedLabel = restrictedLabels[currentTab];
-
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-slate-100 font-sans transition-colors duration-200 flex flex-col selection:bg-indigo-500/30">
-      {/* Minimal ambient glow for depth */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 h-[500px] w-[1000px] bg-indigo-500/[0.03] blur-[120px] pointer-events-none z-0" />
-
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200 flex flex-col">
+      {/* Top Fixed Utility Navigation Header */}
       <Header mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
-      <div className="relative z-10 flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Responsive Navigation Sidebar */}
         <Sidebar mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto w-full transition-all overflow-y-auto overflow-x-hidden">
-          {allowed && currentTab === 'dashboard' && <DashboardModule />}
-          {allowed && currentTab === 'products' && <ProductModule />}
-          {allowed && currentTab === 'orders' && <OrderModule />}
-          {allowed && currentTab === 'customers' && <CustomerModule />}
-          {allowed && currentTab === 'inventory' && <InventoryModule />}
-          {allowed && currentTab === 'payment-shipping' && <PaymentShippingModule />}
-          {allowed && currentTab === 'cms' && <CMSModule />}
-          {allowed && currentTab === 'marketing' && <MarketingModule />}
-          {allowed && (currentTab === 'staff' || currentTab === 'users-roles') && <StaffModule />}
-          {allowed && currentTab === 'settings' && <SettingsModule />}
-          {allowed && currentTab === 'integrations' && <IntegrationsModule />}
-          {!allowed && <RestrictedAccess label={restrictedLabel} />}
+        {/* Main Content Workspace Container */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full transition-all overflow-y-auto">
+          {currentTab === 'dashboard' && <DashboardModule />}
+          {currentTab === 'products' && <ProductModule />}
+          {currentTab === 'orders' && <OrderModule />}
+          {currentTab === 'customers' && <CustomerModule />}
+          {currentTab === 'payment-shipping' && <PaymentShippingModule />}
+          {currentTab === 'cms' && <CMSModule />}
+          {currentTab === 'marketing' && <MarketingModule />}
+          {(currentTab === 'staff' || currentTab === 'users-roles') && <StaffModule />}
+          {currentTab === 'settings' && <SettingsModule />}
         </main>
       </div>
 
