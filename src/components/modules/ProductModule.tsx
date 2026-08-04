@@ -435,8 +435,13 @@ export const ProductModule: React.FC = () => {
                       />
                       <div>
                         <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{p.name}</h4>
-                        <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 flex-wrap">
                           ⭐ {p.rating} ({p.reviewCount} reviews) • {p.variants.length} variant(s)
+                          {p.videoUrl && (
+                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-md bg-indigo-50 px-1 py-0.5 text-[9px] font-extrabold text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+                              🎥 Video
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -1123,16 +1128,58 @@ export const ProductModule: React.FC = () => {
               </span>
               <button onClick={() => setPreviewProduct(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <img
-              src={
-                previewProduct.images[previewImageIndex] ||
-                previewProduct.images[0] ||
-                'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
-              }
-              alt={previewProduct.name}
-              className="h-48 w-full rounded-2xl object-cover mb-4"
-            />
-            {previewProduct.images.length > 1 && (
+            {previewProduct.videoUrl && (
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageIndex(-1)}
+                  className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                    previewImageIndex === -1
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                  }`}
+                >
+                  🎥 Watch Video
+                </button>
+                {previewProduct.images.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPreviewImageIndex(i)}
+                    className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                      previewImageIndex === i
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    📷 Image {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {previewImageIndex === -1 && previewProduct.videoUrl ? (
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-black mb-4 dark:border-slate-800 aspect-video flex items-center justify-center">
+                <video
+                  src={previewProduct.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full max-h-48 object-contain"
+                />
+              </div>
+            ) : (
+              <img
+                src={
+                  previewProduct.images[previewImageIndex] ||
+                  previewProduct.images[0] ||
+                  'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
+                }
+                alt={previewProduct.name}
+                className="h-48 w-full rounded-2xl object-cover mb-4"
+              />
+            )}
+
+            {!previewProduct.videoUrl && previewProduct.images.length > 1 && (
               <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
                 {previewProduct.images.map((img, i) => (
                   <button

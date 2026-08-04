@@ -74,6 +74,244 @@ const DEFAULT_SETTINGS: StoreSettings = {
   apiKeys: [],
 };
 
+const DEFAULT_REVIEWS: CustomerReview[] = [
+  {
+    id: 'rev-1',
+    productId: 'p-1',
+    productName: 'PLA Pro Filament',
+    customerName: 'Aarav Mehta',
+    rating: 5,
+    comment: 'Amazing layer adhesion and no stringing at all! Extremely satisfied.',
+    status: 'Approved',
+    createdAt: '2025-05-14',
+  },
+  {
+    id: 'rev-2',
+    productId: 'p-2',
+    productName: 'ABS Ultra Tough Filament',
+    customerName: 'Priya Sharma',
+    rating: 4,
+    comment: 'Great strength, requires heated enclosure for best warping prevention.',
+    status: 'Approved',
+    createdAt: '2025-05-13',
+  }
+];
+
+const DEFAULT_WAREHOUSES: Warehouse[] = [
+  {
+    id: 'wh-1',
+    name: 'Mumbai Central Hub',
+    location: 'Mumbai, MH',
+    code: 'BOM-01',
+    isPrimary: true,
+    totalItems: 450,
+  },
+  {
+    id: 'wh-2',
+    name: 'Delhi NCR Facility',
+    location: 'Gurugram, HR',
+    code: 'DEL-02',
+    isPrimary: false,
+    totalItems: 180,
+  }
+];
+
+const DEFAULT_INVENTORY_ITEMS: InventoryItem[] = [
+  {
+    id: 'inv-1',
+    productId: 'p-1',
+    productName: 'PLA Pro Filament',
+    sku: 'PLA-PRO-001',
+    warehouseId: 'wh-1',
+    warehouseName: 'Mumbai Central Hub',
+    quantity: 120,
+    reorderPoint: 30,
+    status: 'In Stock',
+    lastUpdated: '2025-05-10',
+  },
+  {
+    id: 'inv-2',
+    productId: 'p-2',
+    productName: 'ABS Ultra Tough Filament',
+    sku: 'ABS-TOUGH-002',
+    warehouseId: 'wh-1',
+    warehouseName: 'Mumbai Central Hub',
+    quantity: 15,
+    reorderPoint: 20,
+    status: 'Low Stock',
+    lastUpdated: '2025-05-11',
+  }
+];
+
+const DEFAULT_STOCK_LOGS: StockAdjustmentLog[] = [
+  {
+    id: 'log-1',
+    productId: 'p-1',
+    productName: 'PLA Pro Filament',
+    warehouseName: 'Mumbai Central Hub',
+    changeAmount: 50,
+    reason: 'Restock',
+    adjustedBy: 'Store Manager',
+    timestamp: '2025-05-10 14:30',
+  }
+];
+
+const DEFAULT_PAYMENT_GATEWAYS: PaymentGateway[] = [
+  {
+    id: 'gw-1',
+    name: 'Razorpay',
+    provider: 'razorpay',
+    enabled: true,
+    testMode: true,
+    feePercentage: 2.0,
+  },
+  {
+    id: 'gw-2',
+    name: 'Stripe India',
+    provider: 'stripe',
+    enabled: false,
+    testMode: true,
+    feePercentage: 3.0,
+  },
+  {
+    id: 'gw-3',
+    name: 'Cash on Delivery',
+    provider: 'cod',
+    enabled: true,
+    testMode: false,
+    feePercentage: 0.0,
+  }
+];
+
+const DEFAULT_SHIPPING_ZONES: ShippingZone[] = [
+  {
+    id: 'sz-1',
+    name: 'Domestic Shipping',
+    countries: ['India'],
+    methods: [
+      { id: 'sm-1', name: 'Standard Delivery', type: 'Flat Rate', rate: 50 },
+      { id: 'sm-2', name: 'Express BlueDart', type: 'Weight Based', rate: 150 }
+    ],
+  }
+];
+
+const DEFAULT_CMS_PAGES: CMSPage[] = [
+  {
+    id: 'page-about',
+    title: 'About Our 3D Lab',
+    slug: 'about-us',
+    status: 'Published',
+    sections: [
+      { id: 'sec-1', type: 'text', content: { title: 'Our Story', body: 'Bringing your imagination to physical reality.' } }
+    ],
+    updatedAt: '2025-05-12',
+  }
+];
+
+const DEFAULT_BANNERS: Banner[] = [
+  {
+    id: 'ban-1',
+    title: 'Unleash Your Creativity: 3D Printing Sale',
+    imageUrl: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=1200&auto=format&fit=crop&q=80',
+    ctaText: 'Shop Filament',
+    ctaLink: '/products',
+    position: 'Homepage Hero',
+    active: true,
+  }
+];
+
+const DEFAULT_BLOG_POSTS: BlogPost[] = [
+  {
+    id: 'blog-1',
+    title: 'The Ultimate Guide to 3D Printer Calibration',
+    slug: 'ultimate-3d-printer-calibration-guide',
+    category: 'Guides',
+    coverImage: 'https://images.unsplash.com/photo-1615840287214-7fe58a8b668f?w=600',
+    excerpt: 'Learn the core calibration processes to get crisp 3D prints every single time.',
+    content: 'Calibration is the key to perfect prints...',
+    author: 'Lead Print Engineer',
+    status: 'Published',
+    createdAt: '2025-05-15',
+  }
+];
+
+const DEFAULT_BUNDLE_RULES: BundleRule[] = [
+  {
+    id: 'bun-1',
+    name: 'Buy 3 Get 1 Free PLA',
+    buyQuantity: 3,
+    getQuantity: 1,
+    discountPercentage: 100,
+    status: 'Active',
+  }
+];
+
+const DEFAULT_EMAIL_CAMPAIGNS: EmailCampaign[] = [
+  {
+    id: 'camp-1',
+    name: 'Summer Filament Fest',
+    subject: 'Unbeatable deals on premium PLAs and PETGs!',
+    targetSegment: 'All',
+    sentCount: 1500,
+    openRate: 24.5,
+    clickRate: 8.2,
+    status: 'Sent',
+    sentAt: '2025-05-10',
+  }
+];
+
+const DEFAULT_ABANDONED_CARTS: AbandonedCart[] = [
+  {
+    id: 'cart-1',
+    customerName: 'Kabir Dev',
+    customerEmail: 'kabir@example.com',
+    cartValue: 2400,
+    itemsCount: 2,
+    lastActiveTime: '2 hours ago',
+    recovered: false,
+  }
+];
+
+const DEFAULT_STAFF_ROLES: StaffRole[] = [
+  {
+    id: 'role-super',
+    name: 'Super Admin',
+    description: 'Full system access',
+    permissions: {
+      manageProducts: true,
+      manageOrders: true,
+      manageCustomers: true,
+      manageInventory: true,
+      manageMarketing: true,
+      manageSettings: true,
+      viewAnalytics: true,
+    },
+  },
+  {
+    id: 'role-support',
+    name: 'Customer Support',
+    description: 'Manage orders and reviews',
+    permissions: {
+      manageProducts: false,
+      manageOrders: true,
+      manageCustomers: true,
+      manageInventory: false,
+      manageMarketing: false,
+      manageSettings: false,
+      viewAnalytics: false,
+    },
+  }
+];
+
+function getSavedState<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 interface AdminContextType {
   currentTab: TabType;
   setCurrentTab: (tab: TabType) => void;
@@ -229,20 +467,20 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [tags, setTags] = useState<Tag[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [reviews, setReviews] = useState<CustomerReview[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [stockLogs, setStockLogs] = useState<StockAdjustmentLog[]>([]);
-  const [paymentGateways, setPaymentGateways] = useState<PaymentGateway[]>([]);
-  const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
-  const [cmsPages, setCmsPages] = useState<CMSPage[]>([]);
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [reviews, setReviews] = useState<CustomerReview[]>(() => getSavedState('OMNI_REVIEWS', DEFAULT_REVIEWS));
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(() => getSavedState('OMNI_WAREHOUSES', DEFAULT_WAREHOUSES));
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(() => getSavedState('OMNI_INVENTORY_ITEMS', DEFAULT_INVENTORY_ITEMS));
+  const [stockLogs, setStockLogs] = useState<StockAdjustmentLog[]>(() => getSavedState('OMNI_STOCK_LOGS', DEFAULT_STOCK_LOGS));
+  const [paymentGateways, setPaymentGateways] = useState<PaymentGateway[]>(() => getSavedState('OMNI_PAYMENT_GATEWAYS', DEFAULT_PAYMENT_GATEWAYS));
+  const [shippingZones, setShippingZones] = useState<ShippingZone[]>(() => getSavedState('OMNI_SHIPPING_ZONES', DEFAULT_SHIPPING_ZONES));
+  const [cmsPages, setCmsPages] = useState<CMSPage[]>(() => getSavedState('OMNI_CMS_PAGES', DEFAULT_CMS_PAGES));
+  const [banners, setBanners] = useState<Banner[]>(() => getSavedState('OMNI_BANNERS', DEFAULT_BANNERS));
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => getSavedState('OMNI_BLOG_POSTS', DEFAULT_BLOG_POSTS));
   const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [bundleRules, setBundleRules] = useState<BundleRule[]>([]);
-  const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([]);
-  const [abandonedCarts, setAbandonedCarts] = useState<AbandonedCart[]>([]);
-  const [staffRoles, setStaffRoles] = useState<StaffRole[]>([]);
+  const [bundleRules, setBundleRules] = useState<BundleRule[]>(() => getSavedState('OMNI_BUNDLE_RULES', DEFAULT_BUNDLE_RULES));
+  const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>(() => getSavedState('OMNI_EMAIL_CAMPAIGNS', DEFAULT_EMAIL_CAMPAIGNS));
+  const [abandonedCarts, setAbandonedCarts] = useState<AbandonedCart[]>(() => getSavedState('OMNI_ABANDONED_CARTS', DEFAULT_ABANDONED_CARTS));
+  const [staffRoles, setStaffRoles] = useState<StaffRole[]>(() => getSavedState('OMNI_STAFF_ROLES', DEFAULT_STAFF_ROLES));
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
@@ -259,6 +497,98 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Sync client-only states to localStorage
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_REVIEWS', JSON.stringify(reviews));
+    } catch {}
+  }, [reviews, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_WAREHOUSES', JSON.stringify(warehouses));
+    } catch {}
+  }, [warehouses, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_INVENTORY_ITEMS', JSON.stringify(inventoryItems));
+    } catch {}
+  }, [inventoryItems, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_STOCK_LOGS', JSON.stringify(stockLogs));
+    } catch {}
+  }, [stockLogs, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_PAYMENT_GATEWAYS', JSON.stringify(paymentGateways));
+    } catch {}
+  }, [paymentGateways, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_SHIPPING_ZONES', JSON.stringify(shippingZones));
+    } catch {}
+  }, [shippingZones, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_CMS_PAGES', JSON.stringify(cmsPages));
+    } catch {}
+  }, [cmsPages, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_BANNERS', JSON.stringify(banners));
+    } catch {}
+  }, [banners, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_BLOG_POSTS', JSON.stringify(blogPosts));
+    } catch {}
+  }, [blogPosts, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_BUNDLE_RULES', JSON.stringify(bundleRules));
+    } catch {}
+  }, [bundleRules, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_EMAIL_CAMPAIGNS', JSON.stringify(emailCampaigns));
+    } catch {}
+  }, [emailCampaigns, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_ABANDONED_CARTS', JSON.stringify(abandonedCarts));
+    } catch {}
+  }, [abandonedCarts, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      localStorage.setItem('OMNI_STAFF_ROLES', JSON.stringify(staffRoles));
+    } catch {}
+  }, [staffRoles, user]);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
@@ -989,8 +1319,37 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetToDefaults = async () => {
+    try {
+      localStorage.removeItem('OMNI_REVIEWS');
+      localStorage.removeItem('OMNI_WAREHOUSES');
+      localStorage.removeItem('OMNI_INVENTORY_ITEMS');
+      localStorage.removeItem('OMNI_STOCK_LOGS');
+      localStorage.removeItem('OMNI_PAYMENT_GATEWAYS');
+      localStorage.removeItem('OMNI_SHIPPING_ZONES');
+      localStorage.removeItem('OMNI_CMS_PAGES');
+      localStorage.removeItem('OMNI_BANNERS');
+      localStorage.removeItem('OMNI_BLOG_POSTS');
+      localStorage.removeItem('OMNI_BUNDLE_RULES');
+      localStorage.removeItem('OMNI_EMAIL_CAMPAIGNS');
+      localStorage.removeItem('OMNI_ABANDONED_CARTS');
+      localStorage.removeItem('OMNI_STAFF_ROLES');
+      localStorage.removeItem('OMNI_MANUAL_CATEGORIES');
+    } catch {}
+    setReviews(DEFAULT_REVIEWS);
+    setWarehouses(DEFAULT_WAREHOUSES);
+    setInventoryItems(DEFAULT_INVENTORY_ITEMS);
+    setStockLogs(DEFAULT_STOCK_LOGS);
+    setPaymentGateways(DEFAULT_PAYMENT_GATEWAYS);
+    setShippingZones(DEFAULT_SHIPPING_ZONES);
+    setCmsPages(DEFAULT_CMS_PAGES);
+    setBanners(DEFAULT_BANNERS);
+    setBlogPosts(DEFAULT_BLOG_POSTS);
+    setBundleRules(DEFAULT_BUNDLE_RULES);
+    setEmailCampaigns(DEFAULT_EMAIL_CAMPAIGNS);
+    setAbandonedCarts(DEFAULT_ABANDONED_CARTS);
+    setStaffRoles(DEFAULT_STAFF_ROLES);
     await loadAllData();
-    addToast({ type: 'info', title: 'Data Reloaded', message: 'Fetched latest data from database.' });
+    addToast({ type: 'info', title: 'Data Reloaded', message: 'Fetched latest data and reset local storage caches.' });
   };
 
   const exportBackupJSON = () => {
