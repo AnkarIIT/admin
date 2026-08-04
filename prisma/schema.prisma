@@ -18,6 +18,20 @@ model Product {
   is_on_sale       Boolean  @default(false)
   is_new           Boolean  @default(false)
   is_bestseller    Boolean  @default(false)
+
+  images             Json?
+  subcategory        String?
+  sku                String?
+  cost_price         Decimal? @db.Decimal(10, 2)
+  stock              Int      @default(0)
+  low_stock_threshold Int     @default(0)
+  status             String   @default("Active")
+  video_url          String?
+  tags               Json?
+  variants           Json?
+  seo                Json?
+  specifications     Json?
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -214,18 +228,20 @@ model UserSession {
 }
 
 model admins {
-  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email               String         @unique @db.VarChar(255)
-  password_hash       String
-  role                String         @default("editor") @db.VarChar(50)
-  totp_secret         String?
-  totp_enabled        Boolean        @default(false)
-  recovery_codes_hash String?
-  created_at          DateTime?      @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime?      @default(now()) @db.Timestamptz(6)
-  sessions            AdminSession[]
-  pendingLogins       PendingLogin[]
-  audit_logs          audit_logs[]
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String?
+  email              String            @unique @db.VarChar(255)
+  password_hash      String
+  role               String            @default("editor") @db.VarChar(50)
+  is_active          Boolean           @default(true)
+  totp_secret         String?   @db.Text
+  totp_enabled        Boolean   @default(false)
+  recovery_codes_hash String?   @db.Text
+  created_at    DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?         @default(now()) @db.Timestamptz(6)
+  audit_logs    audit_logs[]
+  sessions      AdminSession[]
+  pendingLogins PendingLogin[]
 }
 
 model AdminSession {
@@ -234,6 +250,7 @@ model AdminSession {
   tokenHash String   @unique @db.VarChar(64)
   expiresAt DateTime @db.Timestamptz(6)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
+
   admins    admins   @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
@@ -246,6 +263,7 @@ model PendingLogin {
   adminId   String   @db.Uuid
   expiresAt DateTime @db.Timestamptz(6)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
+
   admins    admins   @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])

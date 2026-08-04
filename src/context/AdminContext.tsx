@@ -23,6 +23,7 @@ import {
   CustomerReview,
   StockAdjustmentLog,
   AbandonedCart,
+  Integration,
 } from '../types';
 import {
   api,
@@ -45,7 +46,8 @@ export type TabType =
   | 'marketing'
   | 'staff'
   | 'users-roles'
-  | 'settings';
+  | 'settings'
+  | 'integrations';
 
 interface Toast {
   id: string;
@@ -164,11 +166,22 @@ interface AdminContextType {
 
   // Roles / Settings
   updateStaffUserRole: (userId: string, roleId: string) => void;
-  addStaffUser: (user: Omit<StaffUser, 'id'>) => void;
+  addStaffUser: (
+    user: Omit<StaffUser, 'id'> & { password?: string }
+  ) => Promise<{ email: string; password: string } | undefined>;
   updateStaffRole: (userId: string, roleName: string) => void;
+  updateStaffUser: (
+    userId: string,
+    data: { name?: string; email?: string; role?: string; password?: string; is_active?: boolean; reset_totp?: boolean }
+  ) => Promise<boolean>;
+  deleteStaffUser: (userId: string) => Promise<boolean>;
   updateStoreSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   updateSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
   logActivity: (action: string, module: string) => void;
+
+  // Integrations
+  integrations: Integration[];
+  updateIntegration: (id: string, enabled: boolean) => Promise<boolean>;
 
   // State Reset & Export
   resetToDefaults: () => Promise<void>;
@@ -180,8 +193,14 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('OMNI_DARK_MODE');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('OMNI_DARK_MODE');
+      if (!saved) return false;
+      const parsed = JSON.parse(saved);
+      return typeof parsed === 'boolean' ? parsed : false;
+    } catch {
+      return false;
+    }
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -217,10 +236,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
 
   // Sync Dark Mode class on <html>
   useEffect(() => {
-    localStorage.setItem('OMNI_DARK_MODE', JSON.stringify(darkMode));
+    try {
+      localStorage.setItem('OMNI_DARK_MODE', JSON.stringify(darkMode));
+    } catch {}
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -245,10 +267,12 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logActivity = (action: string, module: string) => {
+    const actorEmail = user?.email || 'admin@example.com';
+    const actorName = user?.name || actorEmail.split('@')[0];
     const newLog: ActivityLog = {
       id: 'act-' + Date.now(),
-      user: 'Admin',
-      userEmail: 'admin@example.com',
+      user: actorName,
+      userEmail: actorEmail,
       action,
       module,
       ipAddress: '127.0.0.1',
@@ -262,13 +286,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const loadAllData = useCallback(async () => {
     try {
-      const [productsRes, ordersRes, staffRes, logsRes, settingsRes, couponsRes] = await Promise.all([
+      const [productsRes, ordersRes, staffRes, logsRes, settingsRes, couponsRes, integrationsRes] = await Promise.all([
         api.getProducts(),
         api.getOrders(),
         api.getStaff(),
         api.getActivityLogs(),
         api.getSettings(),
         api.getCoupons(),
+        api.getIntegrations().catch(() => []),
       ]);
       const mappedProducts = (productsRes || []).map(mapDbProduct);
       const mappedOrders = (ordersRes || []).map(mapDbOrder);
@@ -280,6 +305,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActivityLogs(logsRes || []);
       setSettings((prev) => ({ ...prev, ...(settingsRes || {}) }));
       setCoupons(couponsRes || []);
+      setIntegrations(integrationsRes || []);
     } catch (e: any) {
       addToast({ type: 'error', title: 'Failed to load data', message: e.message || 'Database unreachable' });
     } finally {
@@ -318,14 +344,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const res = await api.totpLogin(code, email);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
+      return;
     }
+    throw new Error(res.authenticated ? 'Login succeeded but no user was returned.' : 'Invalid authentication code');
   };
 
   const loginWithPassword = async (email: string, password: string) => {
     const res = await api.passwordLogin(email, password);
     if (res.authenticated && res.user) {
       await applyUser(res.user);
+      return;
     }
+    throw new Error(res.authenticated ? 'Login succeeded but no user was returned.' : 'Invalid email or password');
   };
 
   const completeSetup = async (code: string, email?: string) => {
@@ -343,10 +373,29 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {}
     setUser(null);
     setProducts([]);
+    setCategories([]);
     setOrders([]);
     setCustomers([]);
+    setReviews([]);
+    setWarehouses([]);
+    setInventoryItems([]);
+    setStockLogs([]);
+    setPaymentGateways([]);
+    setShippingZones([]);
+    setCmsPages([]);
+    setBanners([]);
+    setBlogPosts([]);
+    setCoupons([]);
+    setEmailCampaigns([]);
+    setAbandonedCarts([]);
+    setStaffRoles([]);
     setStaffUsers([]);
     setActivityLogs([]);
+    setSettings(DEFAULT_SETTINGS);
+    setIntegrations([]);
+    setCurrentTab('dashboard');
+    setSearchQuery('');
+    setPrintingOrder(null);
   };
 
   // Product CRUD (persisted to database)
@@ -357,10 +406,36 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         category: productData.category,
         description: productData.description,
         price: productData.price,
-        compareAtPrice: productData.compareAtPrice,
+        compareAtPrice: productData.compareAtPrice ?? null,
         slug: productData.seo?.slug || productData.sku,
+        subcategory: productData.subcategory || null,
+        sku: productData.sku || null,
+        costPrice: productData.costPrice ?? null,
+        stock: productData.stock ?? 0,
+        lowStockThreshold: productData.lowStockThreshold ?? 0,
+        status: productData.status || 'Active',
+        videoUrl: productData.videoUrl || null,
+        images: productData.images || [],
+        tags: productData.tags || [],
+        variants: productData.variants || [],
+        seo: productData.seo || {},
+        specifications: productData.specifications || {},
       });
-      const newProduct = mapDbProduct(created);
+      const newProduct: Product = {
+        ...mapDbProduct(created),
+        // Preserve client-side-only fields that the DB does not store yet.
+        images: productData.images ?? [],
+        variants: productData.variants ?? [],
+        tags: productData.tags ?? [],
+        stock: productData.stock ?? 0,
+        lowStockThreshold: productData.lowStockThreshold ?? 0,
+        status: productData.status,
+        costPrice: productData.costPrice ?? 0,
+        subcategory: productData.subcategory ?? '',
+        sku: productData.sku ?? '',
+        videoUrl: productData.videoUrl ?? '',
+        seo: productData.seo,
+      };
       setProducts((prev) => [newProduct, ...prev]);
       setCategories(deriveCategories([newProduct, ...products]));
       logActivity(`Added product "${newProduct.name}"`, 'Products');
@@ -372,16 +447,47 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
-      const updated = await api.updateProduct(id, {
+      const payload: Record<string, any> = {
         name: updates.name,
         category: updates.category,
         description: updates.description,
         price: updates.price,
-        compareAtPrice: updates.compareAtPrice,
-        isNew: updates.status === 'Active',
-        isBestseller: false,
-      });
-      setProducts((prev) => prev.map((p) => (p.id === id ? mapDbProduct(updated) : p)));
+      };
+      if (updates.compareAtPrice !== undefined) payload.compareAtPrice = updates.compareAtPrice ?? null;
+      if (updates.subcategory !== undefined) payload.subcategory = updates.subcategory || null;
+      if (updates.sku !== undefined) payload.sku = updates.sku || null;
+      if (updates.costPrice !== undefined) payload.costPrice = updates.costPrice ?? null;
+      if (updates.stock !== undefined) payload.stock = updates.stock;
+      if (updates.lowStockThreshold !== undefined) payload.lowStockThreshold = updates.lowStockThreshold;
+      if (updates.status !== undefined) payload.status = updates.status;
+      if (updates.videoUrl !== undefined) payload.videoUrl = updates.videoUrl || null;
+      if (updates.images !== undefined) payload.images = updates.images;
+      if (updates.tags !== undefined) payload.tags = updates.tags;
+      if (updates.variants !== undefined) payload.variants = updates.variants;
+      if (updates.seo !== undefined) payload.seo = updates.seo;
+      if (updates.specifications !== undefined) payload.specifications = updates.specifications;
+      const updated = await api.updateProduct(id, payload);
+      const mapped = mapDbProduct(updated);
+      setProducts((prev) =>
+        prev.map((p) => {
+          if (p.id !== id) return p;
+          // Preserve client-side-only fields that the DB does not store yet.
+          return {
+            ...mapped,
+            images: updates.images ?? p.images,
+            variants: updates.variants ?? p.variants,
+            tags: updates.tags ?? p.tags,
+            stock: updates.stock ?? p.stock,
+            lowStockThreshold: updates.lowStockThreshold ?? p.lowStockThreshold,
+            status: updates.status ?? p.status,
+            costPrice: updates.costPrice ?? p.costPrice,
+            subcategory: updates.subcategory ?? p.subcategory,
+            sku: updates.sku ?? p.sku,
+            videoUrl: updates.videoUrl ?? p.videoUrl,
+            seo: updates.seo ?? p.seo,
+          };
+        })
+      );
       logActivity(`Updated product ID ${id}`, 'Products');
       addToast({ type: 'info', title: 'Product Updated', message: 'Changes saved successfully.' });
     } catch (e: any) {
@@ -706,21 +812,91 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addToast({ type: 'info', title: 'User Role Changed', message: `Permissions updated.` });
   };
 
-  const addStaffUser = (user: Omit<StaffUser, 'id'>) => {
-    const newUser: StaffUser = {
-      ...user,
-      id: 'staff-' + Date.now(),
-    };
-    setStaffUsers((prev) => [...prev, newUser]);
-    logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
-    addToast({ type: 'success', title: 'Staff Added', message: `Invite sent to ${newUser.email}.` });
+  const addStaffUser = async (user: Omit<StaffUser, 'id'> & { password?: string }) => {
+    try {
+      const { user: created, credentials } = await api.createStaff({
+        name: user.name,
+        email: user.email,
+        role: user.roleName,
+        password: user.password,
+      });
+      const newUser: StaffUser = {
+        id: created.id,
+        name: user.name,
+        email: user.email,
+        roleId: created.roleId,
+        roleName: created.roleName,
+        avatar: user.avatar,
+        status: user.status,
+        lastLogin: user.lastLogin,
+      };
+      setStaffUsers((prev) => [...prev, newUser]);
+      logActivity(`Added staff member "${newUser.name}" (${newUser.email})`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Added', message: `Account created for ${newUser.email}.` });
+      return credentials;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Add Failed', message: e.message });
+      return undefined;
+    }
   };
 
-  const updateStaffRole = (userId: string, roleName: string) => {
-    setStaffUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, roleName } : u))
-    );
-    addToast({ type: 'info', title: 'User Role Changed', message: `Permissions updated.` });
+  const updateStaffRole = async (userId: string, roleName: string) => {
+    try {
+      const updated = await api.updateStaff(userId, { role: roleName });
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? { ...u, roleId: updated.roleId, roleName: updated.roleName, status: updated.status as StaffUser['status'] }
+            : u
+        )
+      );
+      logActivity(`Updated role of "${updated.email}" to ${roleName}`, 'Staff');
+      addToast({ type: 'info', title: 'User Role Changed', message: 'Permissions updated.' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Update Failed', message: e.message });
+    }
+  };
+
+  const updateStaffUser = async (
+    userId: string,
+    data: { name?: string; email?: string; role?: string; password?: string; is_active?: boolean; reset_totp?: boolean }
+  ) => {
+    try {
+      const updated = await api.updateStaff(userId, data);
+      setStaffUsers((prev) =>
+        prev.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                name: updated.name,
+                email: updated.email,
+                roleId: updated.roleId,
+                roleName: updated.roleName,
+                status: updated.status as StaffUser['status'],
+              }
+            : u
+        )
+      );
+      logActivity(`Updated staff member "${updated.email}"`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Updated', message: `Saved changes for ${updated.email}.` });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Update Failed', message: e.message });
+      return false;
+    }
+  };
+
+  const deleteStaffUser = async (userId: string) => {
+    try {
+      await api.deleteStaff(userId);
+      setStaffUsers((prev) => prev.filter((u) => u.id !== userId));
+      logActivity(`Removed staff member "${userId}"`, 'Staff');
+      addToast({ type: 'success', title: 'Staff Removed', message: 'Staff member deleted.' });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Delete Failed', message: e.message });
+      return false;
+    }
   };
 
   const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
@@ -734,6 +910,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateSettings = updateStoreSettings;
+
+  const updateIntegration = async (id: string, enabled: boolean) => {
+    try {
+      const updated = await api.updateIntegration(id, enabled);
+      setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)));
+      addToast({ type: 'success', title: enabled ? 'Service enabled' : 'Service disabled', message: `${updated.name} is now ${enabled ? 'ON' : 'OFF'}.` });
+      return true;
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Save Failed', message: e.message });
+      return false;
+    }
+  };
 
   const resetToDefaults = async () => {
     await loadAllData();
@@ -808,6 +996,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         staffUsers,
         activityLogs,
         settings,
+        integrations,
 
         addProduct,
         updateProduct,
@@ -843,9 +1032,13 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateStaffUserRole,
         addStaffUser,
         updateStaffRole,
+        updateStaffUser,
+        deleteStaffUser,
         updateStoreSettings,
         updateSettings,
         logActivity,
+
+        updateIntegration,
 
         resetToDefaults,
         exportBackupJSON,
