@@ -19,18 +19,6 @@ export interface SEOData {
   keywords: string[];
 }
 
-export interface ProductSpecifications {
-  material?: string;
-  dimensions?: string;
-  printTime?: string;
-  infill?: string;
-  layerHeight?: string;
-  supportRequired?: boolean;
-  productionTime?: string;
-  durabilityRating?: string;
-  madeToOrder?: boolean;
-}
-
 export interface Product {
   id: string;
   name: string;
@@ -48,7 +36,6 @@ export interface Product {
   description: string;
   variants: ProductVariant[];
   seo: SEOData;
-  specifications?: ProductSpecifications;
   createdAt: string;
   updatedAt: string;
   sku: string;
@@ -212,19 +199,6 @@ export interface PaymentGateway {
   apiKey?: string;
   secretKey?: string;
   feePercentage: number;
-}
-
-export type IntegrationStatus = 'connected' | 'disconnected';
-
-export interface Integration {
-  id: string;
-  type: string;
-  name: string;
-  description: string;
-  developerNote: string;
-  enabled: boolean;
-  status: IntegrationStatus;
-  updatedAt: string | null;
 }
 
 export interface ShippingZone {

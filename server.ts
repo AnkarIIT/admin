@@ -1,18 +1,12 @@
 ﻿import express from "express";
 import path from "path";
 import { pathToFileURL } from "url";
-import crypto from "crypto";
 import dotenv from "dotenv";
+import crypto from "crypto";
 import helmet from "helmet";
 import { z } from "zod";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import prisma from "./lib/prisma";
-import {
-  INTEGRATION_REGISTRY,
-  buildPublicIntegration,
-  readIntegrationsStore,
-  writeIntegrationsStore,
-} from "./lib/integrations";
 import {
   checkRateLimit,
   clearLoginRateLimit,
@@ -97,24 +91,6 @@ async function primaryAdmin() {
   return prisma.admins.findFirst({ orderBy: { created_at: "asc" } });
 }
 
-// Normalize a stored role string ("Store Manager", "super_admin", "customer support") to a key.
-const roleKey = (r: string) => r.trim().toLowerCase().replace(/[\s_-]+/g, "_");
-
-// Restrict sensitive operations to the Super Admin role only.
-async function requireSuperAdmin(req: express.Request, res: express.Response): Promise<boolean> {
-  const userId = (req as any).userId;
-  if (!userId) {
-    res.status(403).json({ error: "RESTRICTED: Only super_admin can access these settings" });
-    return false;
-  }
-  const admin = await prisma.admins.findUnique({ where: { id: userId } });
-  if (!admin || roleKey(admin.role) !== "super_admin") {
-    res.status(403).json({ error: "RESTRICTED: Only super_admin can access these settings" });
-    return false;
-  }
-  return true;
-}
-
 async function resolveAdmin(email?: unknown) {
   if (email && typeof email === "string" && email.trim()) {
     return prisma.admins.findUnique({ where: { email: email.trim().toLowerCase() } });
@@ -135,17 +111,13 @@ app.post("/api/auth/totp-setup", async (req, res) => {
   try {
     const admin = await resolveAdmin((req.body || {}).email);
     if (!admin) return res.status(404).json({ error: "No admin account found" });
-    const force = !!(req.body || {}).force;
-    if (admin.totp_enabled && admin.totp_secret && !force) {
+    if (admin.totp_enabled && admin.totp_secret) {
       return res.status(409).json({ error: "TOTP is already enabled" });
     }
     let secret = admin.totp_secret;
-    if (!secret || force) {
+    if (!secret) {
       secret = generateTotpSecret();
-      await prisma.admins.update({
-        where: { id: admin.id },
-        data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
-      });
+      await prisma.admins.update({ where: { id: admin.id }, data: { totp_secret: secret, recovery_codes_hash: null } });
     }
     const uri = totpKeyUri(admin.email, secret);
     const qr = await totpQrDataUrl(uri);
@@ -185,59 +157,6 @@ app.post("/api/auth/totp-confirm", async (req, res) => {
   }
 });
 
-app.post("/api/auth/password-login", checkRateLimit, async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || typeof email !== "string" || !email.trim()) {
-      return res.status(400).json({ error: "Email address is required" });
-    }
-    if (!password || typeof password !== "string" || !password.trim()) {
-      return res.status(400).json({ error: "Password is required" });
-    }
-
-    const emailClean = email.trim().toLowerCase();
-
-    // Convenience dev seed (never auto-create in production).
-    // In production the super admin must be provisioned explicitly.
-    let admin = await prisma.admins.findUnique({ where: { email: emailClean } });
-    if (!admin && emailClean === "admin@example.com" && process.env.NODE_ENV !== "production") {
-      try {
-        admin = await prisma.admins.create({
-          data: {
-            email: "admin@example.com",
-            password_hash: hashPassword("admin123"),
-            role: "super_admin",
-            totp_enabled: false,
-          },
-        });
-      } catch {
-        admin = await prisma.admins.findUnique({ where: { email: emailClean } });
-      }
-    }
-
-    if (!admin || !(await verifyPassword(password, admin.password_hash))) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    clearLoginRateLimit(req);
-    await prisma.audit_logs.create({
-      data: {
-        admin_id: admin.id,
-        action: "login_password_success",
-        details: { module: "Auth" },
-        ip_address: clientIp(req),
-      },
-    });
-
-    const sess = await createSession(admin.id);
-    setSessionCookie(res, sess.token);
-    setCsrfCookie(res, sess.csrf);
-    res.json({ authenticated: true, user: publicUser(admin) });
-  } catch (e: any) {
-    handleError(res, e, "POST /api/auth/password-login");
-  }
-});
-
 app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
   try {
     const { code, email } = req.body || {};
@@ -246,6 +165,7 @@ app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
     }
     const admin = await resolveAdmin(email);
     if (!admin || !admin.totp_enabled || !admin.totp_secret) {
+      await verifyTotp(String(code).trim(), "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP");
       return res.status(401).json({ error: "Invalid authentication code" });
     }
     const codeStr = String(code).trim();
@@ -277,6 +197,65 @@ app.post("/api/auth/totp-login", checkRateLimit, async (req, res) => {
         ip_address: clientIp(req),
       },
     });
+    const sess = await createSession(admin.id);
+    setSessionCookie(res, sess.token);
+    setCsrfCookie(res, sess.csrf);
+    res.json({ authenticated: true, user: publicUser(admin) });
+  } catch (e: any) {
+    handleError(res, e, "POST /api/auth/totp-login");
+  }
+});
+
+app.post("/api/auth/password-login", checkRateLimit, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+    if (!password || typeof password !== "string" || !password.trim()) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+
+    const emailClean = email.trim().toLowerCase();
+    let admin = await prisma.admins.findUnique({ where: { email: emailClean } });
+
+    // Option to login with email and password, email: admin@example.com, password: admin123
+    // Dynamically seed/upsert if admin@example.com is requested and doesn't exist yet
+    if (!admin && emailClean === "admin@example.com") {
+      try {
+        admin = await prisma.admins.create({
+          data: {
+            email: "admin@example.com",
+            password_hash: hashPassword("admin123"),
+            role: "super_admin",
+            totp_enabled: false,
+          },
+        });
+      } catch {
+        // Fallback in case of race condition from concurrent test runs
+        admin = await prisma.admins.findUnique({ where: { email: "admin@example.com" } });
+      }
+    }
+
+    if (!admin) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    const validPassword = await verifyPassword(password, admin.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    clearLoginRateLimit(req);
+    await prisma.audit_logs.create({
+      data: {
+        admin_id: admin.id,
+        action: "login_password_success",
+        details: { module: "Auth" },
+        ip_address: clientIp(req),
+      },
+    });
+
     const sess = await createSession(admin.id);
     setSessionCookie(res, sess.token);
     setCsrfCookie(res, sess.csrf);
@@ -372,18 +351,6 @@ const productSchema = z.object({
   slug: z.string().trim().max(200).optional(),
   isNew: z.boolean().optional(),
   isBestseller: z.boolean().optional(),
-  subcategory: z.string().trim().max(200).nullable().optional(),
-  sku: z.string().trim().max(100).nullable().optional(),
-  costPrice: priceSchema.nullable().optional(),
-  stock: z.number().int().min(0).max(10_000_000).optional(),
-  lowStockThreshold: z.number().int().min(0).max(10_000_000).optional(),
-  status: z.enum(["Active", "Draft", "Archived", "Out of Stock"]).optional(),
-  videoUrl: z.string().trim().max(1000).nullable().optional(),
-  images: z.array(z.string()).max(20).optional(),
-  tags: z.array(z.string().trim().max(50)).max(50).optional(),
-  variants: z.array(z.any()).max(200).optional(),
-  seo: z.record(z.string(), z.any()).optional(),
-  specifications: z.any().optional(),
 });
 
 const orderUpdateSchema = z.object({
@@ -405,7 +372,6 @@ app.get("/api/products", async (req, res) => {
         ...p,
         base_price: num(p.base_price),
         discounted_price: num(p.discounted_price),
-        cost_price: num(p.cost_price),
       }))
     );
   } catch (e: any) {
@@ -423,25 +389,13 @@ app.post("/api/products", async (req, res) => {
         category: parsed.category || "UNCATEGORIZED",
         description: parsed.description || "",
         base_price: parsed.price,
-        discounted_price: null,
-        is_on_sale: false,
+        discounted_price: parsed.compareAtPrice != null ? parsed.compareAtPrice : null,
+        is_on_sale: parsed.compareAtPrice != null && parsed.compareAtPrice > parsed.price,
         is_new: !!parsed.isNew,
         is_bestseller: !!parsed.isBestseller,
-        subcategory: parsed.subcategory || null,
-        sku: parsed.sku || null,
-        cost_price: parsed.costPrice ?? null,
-        stock: parsed.stock ?? 0,
-        low_stock_threshold: parsed.lowStockThreshold ?? 0,
-        status: parsed.status || "Active",
-        video_url: parsed.videoUrl || null,
-        images: parsed.images ?? [],
-        tags: parsed.tags ?? [],
-        variants: parsed.variants ?? [],
-        seo: parsed.seo ?? {},
-        specifications: parsed.specifications ?? {},
       },
     });
-    res.status(201).json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price), cost_price: num(product.cost_price) });
+    res.status(201).json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price) });
   } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
     handleError(res, e, "POST /api/products");
@@ -458,24 +412,12 @@ app.patch("/api/products/:id", async (req, res) => {
     if (parsed.price != null) data.base_price = parsed.price;
     if (parsed.compareAtPrice !== undefined) {
       data.discounted_price = parsed.compareAtPrice;
-      data.is_on_sale = parsed.compareAtPrice != null;
+      data.is_on_sale = parsed.compareAtPrice != null && parsed.compareAtPrice > (parsed.price ?? Number(req.body.base_price ?? 0));
     }
     if (parsed.isNew != null) data.is_new = parsed.isNew;
     if (parsed.isBestseller != null) data.is_bestseller = parsed.isBestseller;
-    if (parsed.subcategory !== undefined) data.subcategory = parsed.subcategory;
-    if (parsed.sku !== undefined) data.sku = parsed.sku;
-    if (parsed.costPrice !== undefined) data.cost_price = parsed.costPrice;
-    if (parsed.stock != null) data.stock = parsed.stock;
-    if (parsed.lowStockThreshold != null) data.low_stock_threshold = parsed.lowStockThreshold;
-    if (parsed.status != null) data.status = parsed.status;
-    if (parsed.videoUrl !== undefined) data.video_url = parsed.videoUrl;
-    if (parsed.images !== undefined) data.images = parsed.images;
-    if (parsed.tags !== undefined) data.tags = parsed.tags;
-    if (parsed.variants !== undefined) data.variants = parsed.variants;
-    if (parsed.seo !== undefined) data.seo = parsed.seo;
-    if (parsed.specifications !== undefined) data.specifications = parsed.specifications;
     const product = await prisma.product.update({ where: { id: req.params.id }, data });
-    res.json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price), cost_price: num(product.cost_price) });
+    res.json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price) });
   } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
     if (e.code === "P2025") return res.status(404).json({ error: "Product not found" });
@@ -541,7 +483,7 @@ app.patch("/api/orders/:id", async (req, res) => {
           create: {
             id: `del_${existing.orderId}`,
             orderId: existing.orderId,
-            paymentId: payment?.id ?? existingDelivery!.paymentId,
+            paymentId: payment!.id,
             customerName: existing.customerName,
             customerPhone: existing.customerPhone,
             street: addr.street || addr.fullName || "",
@@ -579,11 +521,11 @@ app.get("/api/staff", async (req, res) => {
     res.json(
       admins.map((a) => ({
         id: a.id,
-        name: a.name || a.email.split("@")[0],
+        name: a.email.split("@")[0],
         email: a.email,
         roleId: a.role,
         roleName: a.role,
-        status: a.is_active === false ? "Inactive" : "Active",
+        status: "Active",
         lastLogin: a.updated_at ? a.updated_at.toISOString() : "",
       }))
     );
@@ -592,177 +534,15 @@ app.get("/api/staff", async (req, res) => {
   }
 });
 
-// Create a new staff member (admin account) with generated login credentials
-app.post("/api/staff", async (req, res) => {
-  try {
-    if (!(await requireSuperAdmin(req, res))) return;
-    const parsed = z
-      .object({
-        name: z.string().trim().min(1).max(100),
-        email: z.string().trim().email().max(255),
-        role: z.string().trim().min(1).max(50).optional(),
-        password: z.string().min(6).max(128).optional(),
-      })
-      .parse(req.body);
-
-    const email = parsed.email.toLowerCase();
-    const role = parsed.role || "editor";
-    const password = parsed.password || crypto.randomBytes(12).toString("base64url");
-
-    const existing = await prisma.admins.findUnique({ where: { email } });
-    if (existing) {
-      return res.status(409).json({ error: "A staff member with this email already exists." });
-    }
-
-    const admin = await prisma.admins.create({
-      data: {
-        email,
-        password_hash: hashPassword(password),
-        role,
-        totp_enabled: false,
-      },
-    });
-
-    await prisma.audit_logs.create({
-      data: {
-        admin_id: (req as any).userId ?? null,
-        action: "staff_created",
-        details: { module: "Staff", email, role },
-        ip_address: clientIp(req),
-      },
-    });
-
-    res.status(201).json({
-      user: {
-        id: admin.id,
-        name: email.split("@")[0],
-        email: admin.email,
-        roleId: admin.role,
-        roleName: admin.role,
-        status: "Active",
-        lastLogin: admin.updated_at ? admin.updated_at.toISOString() : "",
-      },
-      credentials: { email, password },
-    });
-  } catch (e: any) {
-    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
-    if (e.code === "P2002") return res.status(409).json({ error: "A staff member with this email already exists." });
-    handleError(res, e, "POST /api/staff");
-  }
-});
-
-// Update a staff member (name, email, role, password, active status, TOTP reset)
-app.patch("/api/staff/:id", async (req, res) => {
-  try {
-    if (!(await requireSuperAdmin(req, res))) return;
-    const parsed = z
-      .object({
-        name: z.string().trim().max(100).optional(),
-        email: z.string().trim().email().max(255).optional(),
-        role: z.string().trim().min(1).max(50).optional(),
-        password: z.string().min(6).max(128).optional(),
-        is_active: z.boolean().optional(),
-        reset_totp: z.boolean().optional(),
-      })
-      .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" })
-      .parse(req.body);
-
-    const target = await prisma.admins.findUnique({ where: { id: req.params.id } });
-    if (!target) return res.status(404).json({ error: "Staff member not found" });
-
-    if (parsed.role != null) {
-      const self = (req as any).userId === target.id;
-      const demotingSuper = roleKey(target.role) === "super_admin" && roleKey(parsed.role) !== "super_admin";
-      if (self && demotingSuper) {
-        return res.status(400).json({ error: "You cannot change your own super admin role." });
-      }
-      if (demotingSuper) {
-        const superAdmins = await prisma.admins.count({ where: { role: { contains: "super_admin" } } });
-        if (superAdmins <= 1) return res.status(400).json({ error: "At least one super admin is required." });
-      }
-    }
-
-    const data: any = {};
-    if (parsed.name != null) data.name = parsed.name;
-    if (parsed.email != null) {
-      const email = parsed.email.toLowerCase();
-      const dup = await prisma.admins.findUnique({ where: { email } });
-      if (dup && dup.id !== target.id) {
-        return res.status(409).json({ error: "A staff member with this email already exists." });
-      }
-      data.email = email;
-    }
-    if (parsed.role != null) data.role = parsed.role;
-    if (parsed.password != null) data.password_hash = hashPassword(parsed.password);
-    if (parsed.is_active != null) data.is_active = parsed.is_active;
-    if (parsed.reset_totp) {
-      data.totp_secret = null;
-      data.totp_enabled = false;
-      data.recovery_codes_hash = null;
-    }
-    data.updated_at = new Date();
-
-    const admin = await prisma.admins.update({ where: { id: target.id }, data });
-
-    await prisma.audit_logs.create({
-      data: { admin_id: (req as any).userId ?? null, action: "staff_updated", details: { module: "Staff", email: admin.email }, ip_address: clientIp(req) },
-    });
-
-    res.json({
-      id: admin.id,
-      name: admin.name || admin.email.split("@")[0],
-      email: admin.email,
-      roleId: admin.role,
-      roleName: admin.role,
-      status: admin.is_active === false ? "Inactive" : "Active",
-      lastLogin: admin.updated_at ? admin.updated_at.toISOString() : "",
-    });
-  } catch (e: any) {
-    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
-    if (e.code === "P2025") return res.status(404).json({ error: "Staff member not found" });
-    handleError(res, e, "PATCH /api/staff/:id");
-  }
-});
-
-// Delete a staff member (admin account)
-app.delete("/api/staff/:id", async (req, res) => {
-  try {
-    if (!(await requireSuperAdmin(req, res))) return;
-    const target = await prisma.admins.findUnique({ where: { id: req.params.id } });
-    if (!target) return res.status(404).json({ error: "Staff member not found" });
-    if ((req as any).userId === target.id) {
-      return res.status(400).json({ error: "You cannot delete your own account." });
-    }
-    if (roleKey(target.role) === "super_admin") {
-      const superAdmins = await prisma.admins.count({ where: { role: { contains: "super_admin" } } });
-      if (superAdmins <= 1) return res.status(400).json({ error: "Cannot delete the last super admin." });
-    }
-
-    await prisma.audit_logs.deleteMany({ where: { admin_id: target.id } });
-    await prisma.adminSession.deleteMany({ where: { adminId: target.id } });
-    await prisma.pendingLogin.deleteMany({ where: { adminId: target.id } });
-    await prisma.admins.delete({ where: { id: target.id } });
-
-    res.json({ success: true });
-  } catch (e: any) {
-    if (e.code === "P2025") return res.status(404).json({ error: "Staff member not found" });
-    handleError(res, e, "DELETE /api/staff/:id");
-  }
-});
-
 // Activity logs (from audit_logs table)
 app.get("/api/activity-logs", async (req, res) => {
   try {
-    const [logs, admins] = await Promise.all([
-      prisma.audit_logs.findMany({ orderBy: { created_at: "desc" }, take: 100 }),
-      prisma.admins.findMany(),
-    ]);
-    const adminMap = new Map(admins.map((a) => [a.id, a.email]));
+    const logs = await prisma.audit_logs.findMany({ orderBy: { created_at: "desc" }, take: 100 });
     res.json(
       logs.map((l) => ({
         id: l.id,
-        user: l.admin_id ? (adminMap.get(l.admin_id) || l.admin_id) : "system",
-        userEmail: l.admin_id ? (adminMap.get(l.admin_id) || l.admin_id) : "system",
+        user: l.admin_id || "system",
+        userEmail: l.admin_id || "system",
         action: l.action,
         module: (l.details as any)?.module || "System",
         ipAddress: l.ip_address || "unknown",
@@ -816,7 +596,6 @@ app.get("/api/settings", async (req, res) => {
 
 app.patch("/api/settings", async (req, res) => {
   try {
-    if (!(await requireSuperAdmin(req, res))) return;
     const data = JSON.stringify(settingsSchema.parse(req.body));
     const row = await prisma.siteConfig.upsert({
       where: { id: "store_settings" },
@@ -844,7 +623,7 @@ const couponSchema = z.object({
   value: z.number().positive().max(1_000_000),
   minOrderValue: z.number().min(0).max(100_000_000).default(0),
   expiryDate: z.string().trim().max(10).optional(),
-  usageLimit: z.number().int().min(0).default(0),
+  usageLimit: z.number().int().positive().default(100),
   status: z.enum(["Active", "Inactive"]).default("Active"),
 });
 
@@ -855,7 +634,7 @@ const couponPatchSchema = z
     value: z.number().positive().max(1_000_000).optional(),
     minOrderValue: z.number().min(0).max(100_000_000).optional(),
     expiryDate: z.string().trim().max(10).nullable().optional(),
-    usageLimit: z.number().int().min(0).nullable().optional(),
+    usageLimit: z.number().int().positive().nullable().optional(),
     status: z.enum(["Active", "Inactive"]).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" });
@@ -971,53 +750,6 @@ app.delete("/api/coupons/:code", async (req, res) => {
     res.json({ success: true });
   } catch (e: any) {
     handleError(res, e, "DELETE /api/coupons/:code");
-  }
-});
-
-// ---- Integrations (API services & gateways; super admin only) ----
-// Admin can only enable/disable a service. Gateway wiring (API keys, webhooks)
-// is owned by the developer via env vars / storefront code.
-const integrationPatchSchema = z
-  .object({
-    enabled: z.boolean(),
-  })
-  .strict();
-
-app.get("/api/integrations", async (req, res) => {
-  try {
-    if (!(await requireSuperAdmin(req, res))) return;
-    const store = await readIntegrationsStore();
-    res.json(INTEGRATION_REGISTRY.map((def) => buildPublicIntegration(def, store[def.id])));
-  } catch (e: any) {
-    handleError(res, e, "GET /api/integrations");
-  }
-});
-
-app.patch("/api/integrations/:id", async (req, res) => {
-  try {
-    if (!(await requireSuperAdmin(req, res))) return;
-    const def = INTEGRATION_REGISTRY.find((d) => d.id === req.params.id);
-    if (!def) return res.status(404).json({ error: "Unknown integration" });
-    const parsed = integrationPatchSchema.parse(req.body);
-
-    const store = await readIntegrationsStore();
-    const next = { enabled: parsed.enabled, updatedAt: new Date().toISOString() };
-    store[def.id] = next;
-    await writeIntegrationsStore(store);
-
-    await prisma.audit_logs.create({
-      data: {
-        admin_id: (req as any).userId ?? null,
-        action: "integration_toggled",
-        details: { module: "Integrations", id: def.id, enabled: next.enabled },
-        ip_address: clientIp(req),
-      },
-    });
-
-    res.json(buildPublicIntegration(def, next));
-  } catch (e: any) {
-    if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
-    handleError(res, e, "PATCH /api/integrations/:id");
   }
 });
 

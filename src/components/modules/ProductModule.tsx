@@ -19,7 +19,6 @@ import {
   X,
   AlertCircle,
   FileSpreadsheet,
-  Star,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { Product, ProductVariant, SEOData, ProductSpecifications } from '../../types';
@@ -46,16 +45,11 @@ export const ProductModule: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
-  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // New Category Form
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
-
-  // Product Images
-  const MAX_IMAGES = 10;
-  const [tagInput, setTagInput] = useState('');
 
   // Product Form State
   const [formData, setFormData] = useState({
@@ -80,7 +74,6 @@ export const ProductModule: React.FC = () => {
       slug: '',
       keywords: ['gear', 'tech'],
     } as SEOData,
-    specifications: DEFAULT_SPECS as ProductSpecifications,
   });
 
   // Filter products
@@ -121,7 +114,6 @@ export const ProductModule: React.FC = () => {
         slug: '',
         keywords: ['lifestyle', 'gear'],
       },
-      specifications: DEFAULT_SPECS as ProductSpecifications,
     });
     setIsAddModalOpen(true);
   };
@@ -145,7 +137,6 @@ export const ProductModule: React.FC = () => {
       tags: product.tags,
       variants: product.variants,
       seo: product.seo,
-      specifications: product.specifications || (DEFAULT_SPECS as ProductSpecifications),
     });
     setIsAddModalOpen(true);
   };
@@ -241,39 +232,6 @@ export const ProductModule: React.FC = () => {
     e.target.value = '';
   };
 
-  const addTag = () => {
-    const t = tagInput.trim();
-    if (!t) return;
-    if (!formData.tags.includes(t)) {
-      setFormData({ ...formData, tags: [...formData.tags, t] });
-    }
-    setTagInput('');
-  };
-
-  const removeTag = (t: string) => {
-    setFormData({ ...formData, tags: formData.tags.filter((x) => x !== t) });
-  };
-
-  const updateVariantRow = (index: number, field: keyof ProductVariant, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      variants: prev.variants.map((v, i) => {
-        if (i !== index) return v;
-        return field === 'price' || field === 'stock'
-          ? { ...v, [field]: parseFloat(value) || 0 }
-          : { ...v, [field]: value };
-      }),
-    }));
-  };
-
-  const removeVariantRow = (index: number) => {
-    setFormData((prev) => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
-  };
-
-  const updateSeo = (field: keyof SEOData, value: string | string[]) => {
-    setFormData((prev) => ({ ...prev, seo: { ...prev.seo, [field]: value } }));
-  };
-
   const handleAddCategorySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
@@ -288,9 +246,9 @@ export const ProductModule: React.FC = () => {
   };
 
   const exportProductsCSV = () => {
-    const headers = 'ID,Name,SKU,Category,Price (₹),Stock,Status\n';
+    const headers = 'ID,Name,SKU,Category,Price ($),Cost ($),Stock,Status\n';
     const rows = products
-      .map((p) => `"${p.id}","${p.name}","${p.sku}","${p.category}",${p.price},${p.stock},"${p.status}"`)
+      .map((p) => `"${p.id}","${p.name}","${p.sku}","${p.category}",${p.price},${p.costPrice},${p.stock},"${p.status}"`)
       .join('\n');
 
     const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -426,9 +384,9 @@ export const ProductModule: React.FC = () => {
                   <td className="py-3.5 px-3 font-semibold text-slate-700 dark:text-slate-300">{p.category}</td>
 
                   <td className="py-3.5 px-3">
-                    <div className="font-black text-slate-900 dark:text-white">₹{p.price.toFixed(2)}</div>
+                    <div className="font-black text-slate-900 dark:text-white">${p.price.toFixed(2)}</div>
                     {p.compareAtPrice && (
-                      <span className="text-[10px] text-slate-400 line-through">₹{p.compareAtPrice.toFixed(2)}</span>
+                      <span className="text-[10px] text-slate-400 line-through">${p.compareAtPrice.toFixed(2)}</span>
                     )}
                   </td>
 
@@ -467,10 +425,7 @@ export const ProductModule: React.FC = () => {
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => {
-                          setPreviewProduct(p);
-                          setPreviewImageIndex(0);
-                        }}
+                        onClick={() => setPreviewProduct(p)}
                         className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                         title="Quick Preview"
                       >
@@ -508,8 +463,8 @@ export const ProductModule: React.FC = () => {
 
       {/* Product Add / Edit Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="m-auto w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Create New Product'}
@@ -541,7 +496,7 @@ export const ProductModule: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
                   <select
@@ -556,20 +511,7 @@ export const ProductModule: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Subcategory</label>
-                  <input
-                    type="text"
-                    value={formData.subcategory}
-                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
-                    placeholder="e.g. Wireless Headphones"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price (₹)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price ($)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -577,19 +519,16 @@ export const ProductModule: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
-                  <p className="mt-1 text-[11px] text-slate-400">Price customers pay on the store</p>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">Compare At Price (₹)</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Stock Units</label>
                   <input
                     type="number"
-                    step="0.01"
-                    value={formData.compareAtPrice || ''}
-                    onChange={(e) => setFormData({ ...formData, compareAtPrice: parseFloat(e.target.value) || 0 })}
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
-                  <p className="mt-1 text-[11px] text-slate-400">Original price — shown struck-through on the store</p>
                 </div>
               </div>
 
@@ -604,20 +543,9 @@ export const ProductModule: React.FC = () => {
                 />
               </div>
 
-              {/* Product Images (Multiple) */}
+              {/* Featured Image Upload */}
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">
-                  Product Images
-                  <span
-                    className={`ml-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${
-                      formData.images.length >= MAX_IMAGES
-                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
-                        : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
-                    }`}
-                  >
-                    {formData.images.length}/{MAX_IMAGES}
-                  </span>
-                </label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Featured Image</label>
                 <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
                   <Upload className="h-6 w-6 text-slate-400" />
                   <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -625,360 +553,15 @@ export const ProductModule: React.FC = () => {
                   </span>
                   <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
                 </label>
-
-                {formData.images.length > 0 && (
-                  <div className="mt-3 grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {formData.images.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className={`group relative overflow-hidden rounded-xl border-2 ${
-                          idx === 0 ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <img src={img} alt={`Product image ${idx + 1}`} className="h-20 w-full object-cover" />
-                        {idx === 0 && (
-                          <span className="absolute left-1 top-1 rounded bg-indigo-600 px-1.5 py-0.5 text-[9px] font-extrabold text-white">
-                            Main
-                          </span>
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-around bg-slate-900/70 p-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button
-                            type="button"
-                            onClick={() => setMainImage(idx)}
-                            disabled={idx === 0}
-                            title="Set as main image"
-                            className="p-0.5 text-white hover:text-indigo-300 disabled:opacity-30 cursor-pointer"
-                          >
-                            <Star className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeProductImage(idx)}
-                            title="Remove image"
-                            className="p-0.5 text-white hover:text-rose-300 cursor-pointer"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Product Video */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Product Video (optional)</label>
-                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
-                  <Video className="h-6 w-6 text-slate-400" />
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {formData.videoUrl ? 'Video attached — click to replace' : 'Click to upload a product video (MP4, WebM, max 30MB)'}
-                  </span>
-                  <input type="file" accept="video/*" className="hidden" onChange={handleProductVideoUpload} />
-                </label>
-                {formData.videoUrl && (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Video className="h-4 w-4 shrink-0 text-indigo-500" />
-                      <video src={formData.videoUrl} className="h-12 w-16 shrink-0 rounded-md object-cover" controls />
-                      <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">Product video attached</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, videoUrl: '' })}
-                      className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-rose-500 dark:hover:bg-slate-700 cursor-pointer"
-                      title="Remove video"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Tags</label>
-                <div className="mt-1 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                    placeholder="Type a tag and press Enter"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
+                {formData.images[0] && (
                   <button
                     type="button"
-                    onClick={addTag}
-                    className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:border-slate-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 cursor-pointer"
+                    onClick={() => setFormData({ ...formData, images: [] })}
+                    className="mt-2 text-xs font-bold text-red-500 hover:underline cursor-pointer"
                   >
-                    Add
+                    Remove image
                   </button>
-                </div>
-                {formData.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {formData.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                      >
-                        {t}
-                        <button type="button" onClick={() => removeTag(t)} className="hover:text-rose-500 cursor-pointer">
-                          ✕
-                        </button>
-                      </span>
-                    ))}
-                  </div>
                 )}
-              </div>
-
-              {/* Variants */}
-              <div>
-                <label className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
-                  Variants
-                  <button
-                    type="button"
-                    onClick={addVariantRow}
-                    className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" /> Add Variant
-                  </button>
-                </label>
-                {formData.variants.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {formData.variants.map((v, idx) => (
-                      <div
-                        key={v.id}
-                        className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-center rounded-xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-800/50"
-                      >
-                        <input
-                          type="text"
-                          value={v.size || ''}
-                          onChange={(e) => updateVariantRow(idx, 'size', e.target.value)}
-                          placeholder="Size"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <input
-                          type="text"
-                          value={v.color || ''}
-                          onChange={(e) => updateVariantRow(idx, 'color', e.target.value)}
-                          placeholder="Color"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <input
-                          type="text"
-                          value={v.sku}
-                          onChange={(e) => updateVariantRow(idx, 'sku', e.target.value)}
-                          placeholder="SKU"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={v.price}
-                          onChange={(e) => updateVariantRow(idx, 'price', e.target.value)}
-                          placeholder="Price"
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={v.stock}
-                            onChange={(e) => updateVariantRow(idx, 'stock', e.target.value)}
-                            placeholder="Stock"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeVariantRow(idx)}
-                            className="shrink-0 text-rose-500 hover:text-rose-700 cursor-pointer"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-[11px] text-slate-400">No variants yet. Add sizes/colors if the product has variations.</p>
-                )}
-              </div>
-
-              {/* Technical Specifications & Print Details */}
-              <div className="rounded-2xl border border-slate-200 p-4 space-y-4 dark:border-slate-800">
-                <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300">
-                  <Layers className="h-4 w-4 text-indigo-500" /> Technical Specifications & Print Details
-                </label>
-
-                {/* Made to Order */}
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
-                  <div>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Made to Order</p>
-                    <p className="text-[11px] text-slate-400">Shown as a badge on the product page</p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={!!formData.specifications?.madeToOrder}
-                    onClick={() => updateSpecs({ madeToOrder: !formData.specifications?.madeToOrder })}
-                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                      formData.specifications?.madeToOrder ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                        formData.specifications?.madeToOrder ? 'left-[18px]' : 'left-0.5'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Production Time</label>
-                  <input
-                    type="text"
-                    value={formData.specifications?.productionTime || ''}
-                    onChange={(e) => updateSpecs({ productionTime: e.target.value })}
-                    placeholder="Ships within 3-5 days"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-
-                {/* Fixed spec fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Material</label>
-                    <input
-                      type="text"
-                      value={formData.specifications?.material || ''}
-                      onChange={(e) => updateSpecs({ material: e.target.value })}
-                      placeholder="PLA"
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Dimensions</label>
-                    <input
-                      type="text"
-                      value={formData.specifications?.dimensions || ''}
-                      onChange={(e) => updateSpecs({ dimensions: e.target.value })}
-                      placeholder="20x15x8cm"
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Print Time</label>
-                    <input
-                      type="text"
-                      value={formData.specifications?.printTime || ''}
-                      onChange={(e) => updateSpecs({ printTime: e.target.value })}
-                      placeholder="6 hours"
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Infill</label>
-                    <input
-                      type="text"
-                      value={formData.specifications?.infill || ''}
-                      onChange={(e) => updateSpecs({ infill: e.target.value })}
-                      placeholder="20%"
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Layer Height</label>
-                    <input
-                      type="text"
-                      value={formData.specifications?.layerHeight || ''}
-                      onChange={(e) => updateSpecs({ layerHeight: e.target.value })}
-                      placeholder="0.2mm"
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex items-end pb-0.5">
-                    <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
-                      <div>
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Support Material</p>
-                        <p className="text-[11px] text-slate-400">{formData.specifications?.supportRequired ? 'Yes' : 'No'}</p>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={!!formData.specifications?.supportRequired}
-                        onClick={() => updateSpecs({ supportRequired: !formData.specifications?.supportRequired })}
-                        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                          formData.specifications?.supportRequired ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                            formData.specifications?.supportRequired ? 'left-[18px]' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Durability rating */}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Durability Rating</label>
-                  <select
-                    value={formData.specifications?.durabilityRating || ''}
-                    onChange={(e) => updateSpecs({ durabilityRating: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  >
-                    <option value="light-use">Light Use</option>
-                    <option value="moderate-use">Moderate Use</option>
-                    <option value="heavy-use">Heavy Use</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* SEO Metadata */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">SEO Metadata</label>
-                <div className="mt-1 space-y-3">
-                  <input
-                    type="text"
-                    value={formData.seo.title}
-                    onChange={(e) => updateSeo('title', e.target.value)}
-                    placeholder="SEO Title (defaults to product name)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <input
-                    type="text"
-                    value={formData.seo.slug}
-                    onChange={(e) => updateSeo('slug', e.target.value)}
-                    placeholder="URL Slug (e.g. wireless-headphones)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <textarea
-                    rows={2}
-                    value={formData.seo.description}
-                    onChange={(e) => updateSeo('description', e.target.value)}
-                    placeholder="Meta description"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <input
-                    type="text"
-                    value={formData.seo.keywords.join(', ')}
-                    onChange={(e) =>
-                      updateSeo(
-                        'keywords',
-                        e.target.value.split(',').map((k) => k.trim()).filter(Boolean)
-                      )
-                    }
-                    placeholder="Keywords (comma separated)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1003,8 +586,8 @@ export const ProductModule: React.FC = () => {
 
       {/* Add Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">Add Product Category</h3>
             <form onSubmit={handleAddCategorySubmit} className="space-y-3 text-xs">
               <div>
@@ -1045,42 +628,19 @@ export const ProductModule: React.FC = () => {
 
       {/* Preview Product Modal */}
       {previewProduct && (
-        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="m-auto w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex justify-between items-start mb-4">
               <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
                 {previewProduct.category}
               </span>
               <button onClick={() => setPreviewProduct(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <img
-              src={
-                previewProduct.images[previewImageIndex] ||
-                previewProduct.images[0] ||
-                'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100'
-              }
-              alt={previewProduct.name}
-              className="h-48 w-full rounded-2xl object-cover mb-4"
-            />
-            {previewProduct.images.length > 1 && (
-              <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-                {previewProduct.images.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPreviewImageIndex(i)}
-                    className={`shrink-0 cursor-pointer rounded-lg border-2 transition-colors ${
-                      i === previewImageIndex ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    <img src={img} alt={`Angle ${i + 1}`} className="h-12 w-12 rounded-lg object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
+            <img src={previewProduct.images[0]} alt={previewProduct.name} className="h-48 w-full rounded-2xl object-cover mb-4" />
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">{previewProduct.name}</h3>
             <p className="text-xs text-slate-500 mt-1">{previewProduct.description}</p>
             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">
-              <span className="font-extrabold text-base text-slate-900 dark:text-white">₹{previewProduct.price.toFixed(2)}</span>
+              <span className="font-extrabold text-base text-slate-900 dark:text-white">${previewProduct.price.toFixed(2)}</span>
               <span className="font-bold text-emerald-600">{previewProduct.stock} units available</span>
             </div>
           </div>

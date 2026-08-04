@@ -9,36 +9,12 @@ import {
   Activity,
   UserCheck,
   Search,
-  Wand2,
-  Copy,
-  Check,
-  Pencil,
-  Trash2,
-  Power,
-  RefreshCw,
-  Loader2,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { StaffUser } from '../../types';
-import { isSuperAdmin, RESTRICTED_MESSAGE } from '../../lib/roles';
-
-const generateRandomPassword = () => {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnopqrstuvwxyz';
-  const digits = '23456789';
-  const symbols = '@#$%&*!?';
-  const all = upper + lower + digits + symbols;
-  const rand = new Uint32Array(14);
-  crypto.getRandomValues(rand);
-  const pick = (chars: string, i: number) => chars[rand[i] % chars.length];
-  const chars = [pick(upper, 0), pick(lower, 1), pick(digits, 2), pick(symbols, 3)];
-  for (let i = 4; i < 14; i++) chars.push(pick(all, i));
-  return chars.sort(() => Math.random() - 0.5).join('');
-};
 
 export const StaffModule: React.FC = () => {
-  const { staffUsers, activityLogs, addStaffUser, updateStaffRole, updateStaffUser, deleteStaffUser, user, addToast } = useAdmin();
-  const canManageStaff = isSuperAdmin(user?.role);
+  const { staffUsers, activityLogs, addStaffUser, updateStaffRole } = useAdmin();
 
   const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'audit'>('users');
 
@@ -47,41 +23,11 @@ export const StaffModule: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<string>('Store Manager');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
 
-  // Edit Staff Modal
-  const [editStaff, setEditStaff] = useState<StaffUser | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editRole, setEditRole] = useState('');
-  const [editPassword, setEditPassword] = useState('');
-  const [editActive, setEditActive] = useState(true);
-  const [editResetTotp, setEditResetTotp] = useState(false);
-  const [editError, setEditError] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  // Delete confirm
-  const [deleteTarget, setDeleteTarget] = useState<StaffUser | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  // Success credentials modal
-  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
-  const [copied, setCopied] = useState<null | 'email' | 'password'>(null);
-
-  const copyToClipboard = async (value: string, field: 'email' | 'password') => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(field);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {}
-  };
-
-  const handleAddStaffSubmit = async (e: React.FormEvent) => {
+  const handleAddStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     if (!name.trim() || !email.trim()) return;
-    const result = await addStaffUser({
+    addStaffUser({
       name,
       email,
       roleId: 'role-2',
@@ -89,71 +35,11 @@ export const StaffModule: React.FC = () => {
       avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
       status: 'Active',
       lastLogin: 'Just now',
-      password: password.trim() || undefined,
     });
-    if (!result) {
-      setError('Could not create the staff member. Check the email and try again.');
-      return;
-    }
-    setCredentials(result);
     setName('');
     setEmail('');
-    setPassword('');
     setModalOpen(false);
   };
-
-  const openEditModal = (staff: StaffUser) => {
-    setEditStaff(staff);
-    setEditName(staff.name);
-    setEditEmail(staff.email);
-    setEditRole(staff.roleName);
-    setEditPassword('');
-    setEditActive(staff.status !== 'Inactive');
-    setEditResetTotp(false);
-    setEditError('');
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editStaff) return;
-    if (!editName.trim() || !editEmail.trim()) {
-      setEditError('Name and email are required.');
-      return;
-    }
-    setEditError('');
-    setSaving(true);
-    try {
-      const ok = await updateStaffUser(editStaff.id, {
-        name: editName.trim(),
-        email: editEmail.trim(),
-        role: editRole,
-        ...(editPassword.trim() ? { password: editPassword.trim() } : {}),
-        is_active: editActive,
-        ...(editResetTotp ? { reset_totp: true } : {}),
-      });
-      if (ok) {
-        setEditStaff(null);
-        if (editResetTotp) {
-          addToast({ type: 'info', title: 'TOTP Reset', message: 'Two-factor auth was disabled for this member.' });
-        }
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteStaff = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const ok = await deleteStaffUser(deleteTarget.id);
-      if (ok) setDeleteTarget(null);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const isSelf = (staff: StaffUser) => staff.email === user?.email;
 
   const permissionMatrix = [
     { module: 'Dashboard & Financial Reports', superAdmin: true, manager: true, fulfillment: false, support: false },
@@ -207,21 +93,12 @@ export const StaffModule: React.FC = () => {
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            {canManageStaff ? (
-              <button
-                onClick={() => {
-                  setError('');
-                  setModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
-              >
-                <UserPlus className="h-4 w-4" /> Add Staff Member
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
-                <Lock className="h-4 w-4" /> {RESTRICTED_MESSAGE}
-              </div>
-            )}
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
+            >
+              <UserPlus className="h-4 w-4" /> Add Staff Member
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
@@ -255,31 +132,8 @@ export const StaffModule: React.FC = () => {
 
                 <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
                   <span>Last active: {staff.lastLogin}</span>
-                  <span className={`font-bold ${staff.status === 'Inactive' ? 'text-slate-400' : 'text-emerald-600'}`}>
-                    {staff.status}
-                  </span>
+                  <span className="font-bold text-emerald-600">Active</span>
                 </div>
-
-                {canManageStaff && (
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(staff)}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                    >
-                      <Pencil className="h-3.5 w-3.5" /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(staff)}
-                      disabled={isSelf(staff)}
-                      title={isSelf(staff) ? 'You cannot delete your own account' : 'Delete this staff member'}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 px-3 py-2 font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -362,7 +216,7 @@ export const StaffModule: React.FC = () => {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Email Address (Login ID)</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Email Address</label>
                 <input
                   type="email"
                   required
@@ -386,38 +240,6 @@ export const StaffModule: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Key className="h-3.5 w-3.5 text-indigo-500" /> Login Credentials (Password)
-                </label>
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  Set a password for this member, or leave blank to auto-generate one.
-                </p>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    type="text"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Auto-generated if blank"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPassword(generateRandomPassword())}
-                    className="flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 font-bold text-indigo-600 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-400 shrink-0"
-                    title="Generate a strong password"
-                  >
-                    <Wand2 className="h-3.5 w-3.5" /> Generate
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">
-                  {error}
-                </p>
-              )}
-
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -431,219 +253,6 @@ export const StaffModule: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Login Credentials Success Modal */}
-      {credentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-emerald-600 mb-1">
-              <CheckCircle2 className="h-5 w-5" />
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Staff Account Created</h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Share these login credentials with the new member. The password is only shown once.
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/60">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Email (Login ID)</label>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="font-mono font-bold text-slate-900 dark:text-white break-all">{credentials.email}</p>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(credentials.email, 'email')}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shrink-0"
-                  >
-                    {copied === 'email' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied === 'email' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/60">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Password</label>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="font-mono font-bold text-slate-900 dark:text-white break-all">{credentials.password}</p>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(credentials.password, 'password')}
-                    className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 shrink-0"
-                  >
-                    {copied === 'password' ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied === 'password' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setCredentials(null)}
-              className="mt-4 w-full rounded-xl bg-indigo-600 px-4 py-2.5 font-bold text-white"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Staff Modal */}
-      {editStaff && (
-        <div className="fixed inset-0 z-50 flex overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">Edit Staff Member</h3>
-            <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Sarah Jenkins"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Email Address (Login ID)</label>
-                <input
-                  type="email"
-                  required
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  placeholder="sarah@omnistore.com"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">Role Assignment</label>
-                <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  disabled={isSelf(editStaff) && editRole === 'Super Admin'}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white disabled:opacity-50"
-                >
-                  <option value="Super Admin">Super Admin</option>
-                  <option value="Store Manager">Store Manager</option>
-                  <option value="Fulfillment Specialist">Fulfillment Specialist</option>
-                  <option value="Customer Support">Customer Support</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Key className="h-3.5 w-3.5 text-indigo-500" /> New Password
-                </label>
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  Leave blank to keep the current password.
-                </p>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    type="text"
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    placeholder="Keep current"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setEditPassword(generateRandomPassword())}
-                    className="flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 font-bold text-indigo-600 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-400 shrink-0"
-                    title="Generate a strong password"
-                  >
-                    <Wand2 className="h-3.5 w-3.5" /> Generate
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-                <label className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
-                  <span className="flex items-center gap-1.5">
-                    <Power className="h-3.5 w-3.5 text-emerald-500" /> Account Active
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={editActive}
-                    onChange={(e) => setEditActive(e.target.checked)}
-                    className="h-4 w-4 accent-emerald-600"
-                  />
-                </label>
-                <label className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
-                  <span className="flex items-center gap-1.5">
-                    <RefreshCw className="h-3.5 w-3.5 text-amber-500" /> Reset TOTP / Disable 2FA
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={editResetTotp}
-                    onChange={(e) => setEditResetTotp(e.target.checked)}
-                    className="h-4 w-4 accent-amber-500"
-                  />
-                </label>
-              </div>
-
-              {editError && (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">
-                  {editError}
-                </p>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditStaff(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white cursor-pointer disabled:opacity-60"
-                >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center gap-2 text-rose-600 mb-1">
-              <Trash2 className="h-5 w-5" />
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Staff Member</h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Remove <span className="font-bold text-slate-900 dark:text-white">{deleteTarget.name}</span> (
-              {deleteTarget.email})? Their admin access will be revoked immediately and this cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteStaff}
-                disabled={deleting}
-                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 font-bold text-white cursor-pointer disabled:opacity-60"
-              >
-                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Delete
-              </button>
-            </div>
           </div>
         </div>
       )}
