@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import helmet from "helmet";
 import { z } from "zod";
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import prisma from "./lib/prisma";
 import {
   checkRateLimit,
@@ -62,7 +63,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "500mb" }));
 
 const handleError = (res: express.Response, e: any, context: string) => {
   console.error(`[${context}]`, e?.message || e);
@@ -298,6 +299,43 @@ app.post("/api/auth/logout", async (req, res) => {
 app.use("/api", csrfProtection, requireAuth);
 
 const num = (v: any) => (v == null ? null : Number(v));
+
+const MAX_MEDIA_BYTES = 30 * 1024 * 1024;
+
+// Media storage status + direct-to-storage upload (bypasses Vercel's 4.5MB function body limit).
+// Requires BLOB_READ_WRITE_TOKEN from a Vercel Blob store; falls back to base64 data URLs in dev.
+app.get("/api/media/status", async (req, res) => {
+  res.json({ enabled: !!process.env.BLOB_READ_WRITE_TOKEN });
+});
+
+app.post("/api/media/upload", async (req, res) => {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(503).json({ error: "Media storage (BLOB_READ_WRITE_TOKEN) is not configured" });
+    }
+    const body = req.body as HandleUploadBody;
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (pathname) => {
+        const isImage = /\.(jpe?g|png|webp|gif|avif)$/i.test(pathname);
+        const isVideo = /\.(mp4|webm|mov|m4v|ogv)$/i.test(pathname);
+        if (!isImage && !isVideo) {
+          throw new Error("Only images and videos are allowed");
+        }
+        return {
+          allowedContentTypes: ["image/*", "video/*"],
+          maximumSizeInBytes: MAX_MEDIA_BYTES,
+          addRandomSuffix: true,
+          allowOverwrite: false,
+        };
+      },
+    });
+    res.status(200).json(jsonResponse);
+  } catch (e: any) {
+    res.status(400).json({ error: e?.message || "Media upload failed" });
+  }
+});
 
 const priceSchema = z
   .union([z.number(), z.string()])

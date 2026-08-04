@@ -21,8 +21,9 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
-import { Product, ProductVariant, SEOData } from '../../types';
-import { fileToDataUrl } from '../../lib/imageUpload';
+import { Product, ProductVariant, SEOData, ProductSpecifications } from '../../types';
+import { filesToMediaUrls, uploadFileToStorage } from '../../lib/mediaUpload';
+import { DEFAULT_SPECS } from '../../api';
 
 export const ProductModule: React.FC = () => {
   const {
@@ -166,12 +167,65 @@ export const ProductModule: React.FC = () => {
     setIsAddModalOpen(false);
   };
 
-  const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const updateSpecs = (patch: Partial<ProductSpecifications>) =>
+    setFormData((prev) => ({ ...prev, specifications: { ...prev.specifications, ...patch } }));
+
+  const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const { urls, errors } = await filesToMediaUrls(files.slice(0, MAX_IMAGES), { types: ['image/'] });
+    if (errors.length) {
+      addToast({
+        type: 'warning',
+        title: 'Some files were skipped',
+        message: errors.map((er) => `${er.fileName}: ${er.message}`).join('; '),
+      });
+    }
+    if (!urls.length) {
+      e.target.value = '';
+      return;
+    }
+    setFormData((prev) => {
+      const current = prev.images.filter(Boolean);
+      const remaining = MAX_IMAGES - current.length;
+      if (remaining <= 0) {
+        addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
+        return prev;
+      }
+      const add = urls.slice(0, remaining);
+      if (urls.length > remaining) {
+        addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
+      }
+      return { ...prev, images: [...current, ...add] };
+    });
+    e.target.value = '';
+  };
+
+  const removeProductImage = (index: number) => {
+    setFormData((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+  };
+
+  const setMainImage = (index: number) => {
+    if (index === 0) return;
+    setFormData((prev) => {
+      const arr = [...prev.images];
+      const [img] = arr.splice(index, 1);
+      arr.unshift(img);
+      return { ...prev, images: arr };
+    });
+  };
+
+  const handleProductVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setFormData({ ...formData, images: [dataUrl] });
+      if (!file.type.startsWith('video/')) {
+        addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
+        return;
+      }
+      const url = await uploadFileToStorage(file, true);
+      setFormData({ ...formData, videoUrl: url });
+      addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
     } catch (err: any) {
       addToast({ type: 'error', title: 'Upload failed', message: err.message });
     }
@@ -493,15 +547,11 @@ export const ProductModule: React.FC = () => {
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">Featured Image</label>
                 <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
-                  {formData.images[0] ? (
-                    <img src={formData.images[0]} alt="Featured preview" className="h-32 w-32 rounded-xl object-cover" />
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 text-slate-400" />
-                      <span className="text-xs text-slate-500 dark:text-slate-400">Click to upload an image</span>
-                    </>
-                  )}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFeaturedImageUpload} />
+                  <Upload className="h-6 w-6 text-slate-400" />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Click to upload multiple images (up to {MAX_IMAGES}, max 30MB each) — front, back, side angles
+                  </span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
                 </label>
                 {formData.images[0] && (
                   <button
