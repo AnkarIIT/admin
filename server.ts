@@ -473,6 +473,7 @@ app.patch("/api/products/:id", async (req, res) => {
     if (parsed.tags !== undefined) data.tags = parsed.tags;
     if (parsed.variants !== undefined) data.variants = parsed.variants;
     if (parsed.seo !== undefined) data.seo = parsed.seo;
+    if (parsed.slug !== undefined) data.slug = parsed.slug;
     if (parsed.specifications !== undefined) data.specifications = parsed.specifications;
     const product = await prisma.product.update({ where: { id: req.params.id }, data });
     res.json({ ...product, base_price: num(product.base_price), discounted_price: num(product.discounted_price), cost_price: num(product.cost_price) });

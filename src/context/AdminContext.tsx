@@ -213,6 +213,16 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Print Invoice Order
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
 
+  // Manual categories to persist across reloads
+  const [manualCategories, setManualCategories] = useState<Category[]>(() => {
+    try {
+      const saved = localStorage.getItem('OMNI_MANUAL_CATEGORIES');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Data States (populated from database via API)
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -298,7 +308,25 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const mappedProducts = (productsRes || []).map(mapDbProduct);
       const mappedOrders = (ordersRes || []).map(mapDbOrder);
       setProducts(mappedProducts);
-      setCategories(deriveCategories(mappedProducts));
+
+      // Merge derived categories with persistent manual categories
+      const derived = deriveCategories(mappedProducts);
+      const manual = (() => {
+        try {
+          const saved = localStorage.getItem('OMNI_MANUAL_CATEGORIES');
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      })();
+      const merged = [...derived];
+      manual.forEach((m: Category) => {
+        if (!merged.some((c) => c.name.toLowerCase() === m.name.toLowerCase())) {
+          merged.push(m);
+        }
+      });
+      setCategories(merged);
+
       setOrders(mappedOrders);
       setCustomers(deriveCustomers(mappedOrders));
       setStaffUsers(staffRes || []);
@@ -437,7 +465,24 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         seo: productData.seo,
       };
       setProducts((prev) => [newProduct, ...prev]);
-      setCategories(deriveCategories([newProduct, ...products]));
+
+      const derived = deriveCategories([newProduct, ...products]);
+      const manual = (() => {
+        try {
+          const saved = localStorage.getItem('OMNI_MANUAL_CATEGORIES');
+          return saved ? JSON.parse(saved) : [];
+        } catch {
+          return [];
+        }
+      })();
+      const merged = [...derived];
+      manual.forEach((m: Category) => {
+        if (!merged.some((c) => c.name.toLowerCase() === m.name.toLowerCase())) {
+          merged.push(m);
+        }
+      });
+      setCategories(merged);
+
       logActivity(`Added product "${newProduct.name}"`, 'Products');
       addToast({ type: 'success', title: 'Product Created', message: `${newProduct.name} is now live.` });
     } catch (e: any) {
@@ -464,7 +509,12 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (updates.images !== undefined) payload.images = updates.images;
       if (updates.tags !== undefined) payload.tags = updates.tags;
       if (updates.variants !== undefined) payload.variants = updates.variants;
-      if (updates.seo !== undefined) payload.seo = updates.seo;
+      if (updates.seo !== undefined) {
+        payload.seo = updates.seo;
+        if (updates.seo.slug) {
+          payload.slug = updates.seo.slug;
+        }
+      }
       if (updates.specifications !== undefined) payload.specifications = updates.specifications;
       const updated = await api.updateProduct(id, payload);
       const mapped = mapDbProduct(updated);
@@ -527,6 +577,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       costPrice: target.costPrice,
       subcategory: target.subcategory,
       sku: `${target.sku}-COPY`,
+      specifications: target.specifications,
     });
     addToast({ type: 'success', title: 'Product Duplicated', message: `Created copy "${target.name}".` });
   };
@@ -537,7 +588,21 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: 'cat-' + Date.now(),
       productCount: 0,
     };
-    setCategories((prev) => [...prev, newCat]);
+    setCategories((prev) => {
+      if (prev.some((c) => c.name.toLowerCase() === newCat.name.toLowerCase())) {
+        return prev;
+      }
+      return [...prev, newCat];
+    });
+    setManualCategories((prev) => {
+      const next = prev.some((c) => c.name.toLowerCase() === newCat.name.toLowerCase())
+        ? prev
+        : [...prev, newCat];
+      try {
+        localStorage.setItem('OMNI_MANUAL_CATEGORIES', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     logActivity(`Added category "${newCat.name}"`, 'Products');
     addToast({ type: 'success', title: 'Category Created', message: `Category ${newCat.name} added.` });
   };

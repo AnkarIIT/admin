@@ -182,7 +182,32 @@ export const ProductModule: React.FC = () => {
   const handleProductImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    const { urls, errors } = await filesToMediaUrls(files.slice(0, MAX_IMAGES), { types: ['image/'] });
+
+    const currentCount = formData.images.filter(Boolean).length;
+    const remaining = MAX_IMAGES - currentCount;
+
+    if (remaining <= 0) {
+      addToast({
+        type: 'warning',
+        title: 'Image limit reached',
+        message: `A product can have up to ${MAX_IMAGES} images.`,
+      });
+      e.target.value = '';
+      return;
+    }
+
+    const filesToUpload = files.slice(0, remaining);
+
+    if (files.length > remaining) {
+      addToast({
+        type: 'warning',
+        title: 'Some files were skipped',
+        message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).`,
+      });
+    }
+
+    const { urls, errors } = await filesToMediaUrls(filesToUpload, { types: ['image/'] });
+
     if (errors.length) {
       addToast({
         type: 'warning',
@@ -190,23 +215,18 @@ export const ProductModule: React.FC = () => {
         message: errors.map((er) => `${er.fileName}: ${er.message}`).join('; '),
       });
     }
+
     if (!urls.length) {
       e.target.value = '';
       return;
     }
+
     setFormData((prev) => {
       const current = prev.images.filter(Boolean);
-      const remaining = MAX_IMAGES - current.length;
-      if (remaining <= 0) {
-        addToast({ type: 'warning', title: 'Image limit reached', message: `A product can have up to ${MAX_IMAGES} images.` });
-        return prev;
-      }
-      const add = urls.slice(0, remaining);
-      if (urls.length > remaining) {
-        addToast({ type: 'warning', title: 'Some images skipped', message: `Only ${remaining} more image(s) can be added (max ${MAX_IMAGES}).` });
-      }
+      const add = urls.slice(0, MAX_IMAGES - current.length);
       return { ...prev, images: [...current, ...add] };
     });
+
     e.target.value = '';
   };
 
@@ -541,7 +561,7 @@ export const ProductModule: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
                   <select
@@ -565,9 +585,23 @@ export const ProductModule: React.FC = () => {
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Product Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as Product['status'] })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Archived">Archived</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">Selling Price (₹)</label>
                   <input
@@ -590,6 +624,42 @@ export const ProductModule: React.FC = () => {
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
                   />
                   <p className="mt-1 text-[11px] text-slate-400">Original price — shown struck-through on the store</p>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Cost Price (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.costPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">Acquisition or manufacturing cost</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Initial Stock Quantity</label>
+                  <input
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">Total physical units in stock</p>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Low Stock Threshold</label>
+                  <input
+                    type="number"
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 0 })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-900 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">Warns when stock falls to or below this count</p>
                 </div>
               </div>
 

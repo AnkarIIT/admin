@@ -33,7 +33,7 @@ function sanitizeFileName(name: string): string {
 }
 
 // Uploads a file directly to Vercel Blob (bypasses the 4.5MB function body limit).
-// Falls back to a base64 data URL in local dev when Blob storage is not configured.
+// Falls back to a base64 data URL when Blob storage is not configured.
 export async function uploadFileToStorage(file: File, allowAny = false): Promise<string> {
   if (!allowAny && !file.type.startsWith('image/')) {
     throw new Error('Please choose an image file');
@@ -42,10 +42,7 @@ export async function uploadFileToStorage(file: File, allowAny = false): Promise
     throw new Error(`File too large (max ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB)`);
   }
   if (!(await isBlobConfigured())) {
-    if (import.meta.env.DEV) {
-      return fileToDataUrl(file, MAX_UPLOAD_BYTES, allowAny);
-    }
-    throw new Error('Media storage (Vercel Blob) is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel.');
+    return fileToDataUrl(file, MAX_UPLOAD_BYTES, allowAny);
   }
   const blob = await upload(sanitizeFileName(file.name), file, {
     access: 'public',
@@ -56,7 +53,7 @@ export async function uploadFileToStorage(file: File, allowAny = false): Promise
   return blob.url;
 }
 
-// Uploads multiple files independently so one bad file does not fail the whole batch.
+// Uploads multiple files concurrently using Promise.allSettled so one bad file does not fail the whole batch.
 export async function filesToMediaUrls(
   files: File[],
   opts: { types?: string[] } = {}
@@ -64,15 +61,28 @@ export async function filesToMediaUrls(
   const { types } = opts;
   const urls: string[] = [];
   const errors: FileProcessError[] = [];
-  for (const file of files) {
-    try {
-      if (types?.length && !types.some((t) => file.type.startsWith(t))) {
-        throw new Error('Unsupported file type');
-      }
-      urls.push(await uploadFileToStorage(file));
-    } catch (e: any) {
-      errors.push({ fileName: file.name || file.type || 'file', message: e.message });
+
+  const uploadPromises = files.map(async (file) => {
+    if (types?.length && !types.some((t) => file.type.startsWith(t))) {
+      throw new Error('Unsupported file type');
     }
-  }
+    const url = await uploadFileToStorage(file);
+    return { name: file.name, url };
+  });
+
+  const results = await Promise.allSettled(uploadPromises);
+
+  results.forEach((res, index) => {
+    const file = files[index];
+    if (res.status === 'fulfilled') {
+      urls.push(res.value.url);
+    } else {
+      errors.push({
+        fileName: file?.name || file?.type || 'file',
+        message: res.reason?.message || 'Upload failed',
+      });
+    }
+  });
+
   return { urls, errors };
 }
