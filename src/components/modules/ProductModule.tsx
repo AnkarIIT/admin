@@ -218,16 +218,40 @@ export const ProductModule: React.FC = () => {
 
     if (!urls.length) {
       e.target.value = '';
-      return;
     }
+const currentCount = formData.images.filter(Boolean).length;
+  const remaining = MAX_IMAGES - currentCount;
 
-    setFormData((prev) => {
-      const current = prev.images.filter(Boolean);
-      const add = urls.slice(0, MAX_IMAGES - current.length);
-      return { ...prev, images: [...current, ...add] };
+  if (remaining <= 0) {
+    addToast({
+      type: 'warning',
+      title: 'Image limit reached',
+      message: `A product can have up to ${MAX_IMAGES} images.`,
     });
-
     e.target.value = '';
+    return;
+  }
+
+  setUploadingImages(true);
+  try {
+    const { urls, errors } = await filesToMediaUrls(files.slice(0, remaining), { types: ['image/'] });
+    if (errors.length) {
+      addToast({
+        type: 'warning',
+        title: 'Some files were skipped',
+        message: errors.map((er) => `${er.fileName}: ${er.message}`).join('; '),
+      });
+    }
+    if (!urls.length) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      images: [...prev.images.filter(Boolean), ...urls],
+    }));
+  } finally {
+    setUploadingImages(false);
+    e.target.value = '';
+  }
   };
 
   const removeProductImage = (index: number) => {
@@ -244,21 +268,28 @@ export const ProductModule: React.FC = () => {
     });
   };
 
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
   const handleProductVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
+      e.target.value = '';
+      return;
+    }
+    setUploadingVideo(true);
     try {
-      if (!file.type.startsWith('video/')) {
-        addToast({ type: 'error', title: 'Upload failed', message: 'Please choose a video file' });
-        return;
-      }
       const url = await uploadFileToStorage(file, true);
-      setFormData({ ...formData, videoUrl: url });
+      setFormData((prev) => ({ ...prev, videoUrl: url }));
       addToast({ type: 'success', title: 'Video attached', message: 'Product video uploaded.' });
     } catch (err: any) {
       addToast({ type: 'error', title: 'Upload failed', message: err.message });
+    } finally {
+      setUploadingVideo(false);
+      e.target.value = '';
     }
-    e.target.value = '';
   };
 
   const addTag = () => {
@@ -688,12 +719,20 @@ export const ProductModule: React.FC = () => {
                     {formData.images.length}/{MAX_IMAGES}
                   </span>
                 </label>
-                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
-                  <Upload className="h-6 w-6 text-slate-400" />
+                <label className={`mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+                  uploadingImages
+                    ? 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 dark:border-indigo-500'
+                    : 'border-slate-300 hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400'
+                }`}>
+                  {uploadingImages ? (
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-slate-400" />
+                  )}
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Click to upload multiple images (up to {MAX_IMAGES}, max 30MB each) — front, back, side angles
+                    {uploadingImages ? 'Uploading images...' : `Click to upload multiple images (up to ${MAX_IMAGES}, max 30MB each) — front, back, side angles`}
                   </span>
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} />
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleProductImagesUpload} disabled={uploadingImages} />
                 </label>
 
                 {formData.images.length > 0 && (
@@ -739,12 +778,24 @@ export const ProductModule: React.FC = () => {
               {/* Product Video */}
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">Product Video (optional)</label>
-                <label className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400">
-                  <Video className="h-6 w-6 text-slate-400" />
+                <label className={`mt-1 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+                  uploadingVideo
+                    ? 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 dark:border-indigo-500'
+                    : 'border-slate-300 hover:border-indigo-500 dark:border-slate-700 dark:hover:border-indigo-400'
+                }`}>
+                  {uploadingVideo ? (
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  ) : (
+                    <Video className="h-6 w-6 text-slate-400" />
+                  )}
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {formData.videoUrl ? 'Video attached — click to replace' : 'Click to upload a product video (MP4, WebM, max 30MB)'}
+                    {uploadingVideo
+                      ? 'Uploading video...'
+                      : formData.videoUrl
+                      ? 'Video attached — click to replace'
+                      : 'Click to upload a product video (MP4, WebM, max 30MB)'}
                   </span>
-                  <input type="file" accept="video/*" className="hidden" onChange={handleProductVideoUpload} />
+                  <input type="file" accept="video/*" className="hidden" onChange={handleProductVideoUpload} disabled={uploadingVideo} />
                 </label>
                 {formData.videoUrl && (
                   <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-slate-100 p-2 dark:bg-slate-800">

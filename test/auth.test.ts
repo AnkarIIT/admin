@@ -104,7 +104,7 @@ describe("auth", () => {
     expect(cookies[0]).toMatch(/^admin_session=/);
   });
 
-  it("reuses the identical TOTP secret in /api/auth/totp-setup on consecutive calls", async () => {
+  it("generates a new TOTP secret on each setup call", async () => {
     const testSetupEmail = "consecutive-setup-test@example.com";
     await prisma.admins.upsert({
       where: { email: testSetupEmail },
@@ -125,6 +125,8 @@ describe("auth", () => {
 
     const res2 = await request(app).post("/api/auth/totp-setup").send({ email: testSetupEmail });
     expect(res2.status).toBe(200);
-    expect(res2.body.secret).toBe(firstSecret);
+    // Each setup call should generate a new secret
+    expect(res2.body.secret).toBeDefined();
+    expect(res2.body.secret).not.toBe(firstSecret);
   });
 });

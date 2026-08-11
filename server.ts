@@ -69,6 +69,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(express.raw({ type: 'application/octet-stream', limit: "500mb" }));
 app.use(express.json({ limit: "500mb" }));
 
 const handleError = (res: express.Response, e: any, context: string) => {
@@ -136,17 +137,15 @@ app.post("/api/auth/totp-setup", async (req, res) => {
     const admin = await resolveAdmin((req.body || {}).email);
     if (!admin) return res.status(404).json({ error: "No admin account found" });
     const force = !!(req.body || {}).force;
-    if (admin.totp_enabled && admin.totp_secret && !force) {
+    if (admin.totp_enabled && !force) {
       return res.status(409).json({ error: "TOTP is already enabled" });
     }
-    let secret = admin.totp_secret;
-    if (!secret || force) {
-      secret = generateTotpSecret();
-      await prisma.admins.update({
-        where: { id: admin.id },
-        data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
-      });
-    }
+    // Always generate a new secret for TOTP setup (whether force is true or not)
+    const secret = generateTotpSecret();
+    await prisma.admins.update({
+      where: { id: admin.id },
+      data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
+    });
     const uri = totpKeyUri(admin.email, secret);
     const qr = await totpQrDataUrl(uri);
     res.json({ secret, uri, qr });
@@ -565,7 +564,14 @@ app.patch("/api/orders/:id", async (req, res) => {
         });
       }
     }
-    res.json(order);
+    res.json({
+      ...order,
+      subtotal: num(order.subtotal),
+      tax: num(order.tax),
+      shipping: num(order.shipping),
+      discount: num(order.discount),
+      total: num(order.total),
+    });
   } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
     if (e.code === "P2025") return res.status(404).json({ error: "Order not found" });
@@ -739,10 +745,12 @@ app.delete("/api/staff/:id", async (req, res) => {
       if (superAdmins <= 1) return res.status(400).json({ error: "Cannot delete the last super admin." });
     }
 
-    await prisma.audit_logs.deleteMany({ where: { admin_id: target.id } });
-    await prisma.adminSession.deleteMany({ where: { adminId: target.id } });
-    await prisma.pendingLogin.deleteMany({ where: { adminId: target.id } });
-    await prisma.admins.delete({ where: { id: target.id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.audit_logs.deleteMany({ where: { admin_id: target.id } });
+      await tx.adminSession.deleteMany({ where: { adminId: target.id } });
+      await tx.pendingLogin.deleteMany({ where: { adminId: target.id } });
+      await tx.admins.delete({ where: { id: target.id } });
+    });
 
     res.json({ success: true });
   } catch (e: any) {
