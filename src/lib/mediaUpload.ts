@@ -53,7 +53,7 @@ export async function uploadFileToStorage(file: File, allowAny = false): Promise
   return blob.url;
 }
 
-// Uploads multiple files independently so one bad file does not fail the whole batch.
+// Uploads multiple files concurrently using Promise.allSettled so one bad file does not fail the whole batch.
 export async function filesToMediaUrls(
   files: File[],
   opts: { types?: string[] } = {}
@@ -61,15 +61,28 @@ export async function filesToMediaUrls(
   const { types } = opts;
   const urls: string[] = [];
   const errors: FileProcessError[] = [];
-  for (const file of files) {
-    try {
-      if (types?.length && !types.some((t) => file.type.startsWith(t))) {
-        throw new Error('Unsupported file type');
-      }
-      urls.push(await uploadFileToStorage(file));
-    } catch (e: any) {
-      errors.push({ fileName: file.name || file.type || 'file', message: e.message });
+
+  const uploadPromises = files.map(async (file) => {
+    if (types?.length && !types.some((t) => file.type.startsWith(t))) {
+      throw new Error('Unsupported file type');
     }
-  }
+    const url = await uploadFileToStorage(file);
+    return { name: file.name, url };
+  });
+
+  const results = await Promise.allSettled(uploadPromises);
+
+  results.forEach((res, index) => {
+    const file = files[index];
+    if (res.status === 'fulfilled') {
+      urls.push(res.value.url);
+    } else {
+      errors.push({
+        fileName: file?.name || file?.type || 'file',
+        message: res.reason?.message || 'Upload failed',
+      });
+    }
+  });
+
   return { urls, errors };
 }
