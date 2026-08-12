@@ -26,6 +26,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   const res = await fetch(`/api${path}`, {
+    credentials: 'include',
     ...options,
     headers: {
       ...headers,
@@ -121,7 +122,20 @@ export const api = {
 
 export async function checkAuth(): Promise<AuthUser | null> {
   try {
-    const res = await fetch('/api/auth/me', { headers: { 'Content-Type': 'application/json' } });
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const csrfCookie = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('csrf_token='));
+    if (csrfCookie) {
+      const value = csrfCookie.split('=')[1];
+      if (value) {
+        headers['X-CSRF-Token'] = decodeURIComponent(value);
+      }
+    }
+    const res = await fetch('/api/auth/me', {
+      credentials: 'include',
+      headers,
+    });
     if (!res.ok) return null;
     const data = await res.json();
     return data.user || null;
