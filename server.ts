@@ -69,7 +69,6 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.raw({ type: 'application/octet-stream', limit: "500mb" }));
 app.use(express.json({ limit: "500mb" }));
 
 const handleError = (res: express.Response, e: any, context: string) => {
@@ -137,15 +136,17 @@ app.post("/api/auth/totp-setup", async (req, res) => {
     const admin = await resolveAdmin((req.body || {}).email);
     if (!admin) return res.status(404).json({ error: "No admin account found" });
     const force = !!(req.body || {}).force;
-    if (admin.totp_enabled && !force) {
+    if (admin.totp_enabled && admin.totp_secret && !force) {
       return res.status(409).json({ error: "TOTP is already enabled" });
     }
-    // Always generate a new secret for TOTP setup (whether force is true or not)
-    const secret = generateTotpSecret();
-    await prisma.admins.update({
-      where: { id: admin.id },
-      data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
-    });
+    let secret = admin.totp_secret;
+    if (!secret || force) {
+      secret = generateTotpSecret();
+      await prisma.admins.update({
+        where: { id: admin.id },
+        data: { totp_secret: secret, totp_enabled: false, recovery_codes_hash: null },
+      });
+    }
     const uri = totpKeyUri(admin.email, secret);
     const qr = await totpQrDataUrl(uri);
     res.json({ secret, uri, qr });
@@ -362,6 +363,28 @@ const priceSchema = z
   .transform((v) => Number(v))
   .refine((n) => Number.isFinite(n) && n >= 0 && n <= 100_000_000, { message: "Invalid price" });
 
+// Keeping product payloads small matters: Vercel rejects any function payload
+// over the 4.5MB serverless limit with a 413 BEFORE the handler runs. Base64
+// images embedded in a product (the pre-Blob upload fallback) easily blow past
+// that, so data-URL images are capped to stay well under the limit.
+const MAX_B64_IMAGE_BYTES = 1_000_000;
+const MAX_IMAGE_PAYLOAD_BYTES = 4_000_000;
+const totalImagesBytes = (images: string[]) =>
+  images.reduce((acc, u) => acc + (u.startsWith("data:") ? Math.ceil(((u.length * 3) / 4) * 1.1) : u.length), 0);
+
+const productImagesSchema = z
+  .array(z.string())
+  .max(20)
+  .refine((imgs) => imgs.every((u) => !u.startsWith("data:") || totalImagesBytes([u]) <= MAX_B64_IMAGE_BYTES), {
+    message: "Embedded image too large. Upload via Blob storage instead.",
+  })
+  .refine((imgs) => imgs.every((u) => !u.startsWith("data:") || u.startsWith("data:image/")), {
+    message: "Only image data URLs are allowed",
+  })
+  .refine((imgs) => totalImagesBytes(imgs) <= MAX_IMAGE_PAYLOAD_BYTES, {
+    message: "Product images payload too large (keep total under 4MB)",
+  });
+
 const productSchema = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().max(100).optional(),
@@ -378,7 +401,7 @@ const productSchema = z.object({
   lowStockThreshold: z.number().int().min(0).max(10_000_000).optional(),
   status: z.enum(["Active", "Draft", "Archived", "Out of Stock"]).optional(),
   videoUrl: z.string().trim().max(1000).nullable().optional(),
-  images: z.array(z.string()).max(20).optional(),
+  images: productImagesSchema.optional(),
   tags: z.array(z.string().trim().max(50)).max(50).optional(),
   variants: z.array(z.any()).max(200).optional(),
   seo: z.record(z.string(), z.any()).optional(),
@@ -409,6 +432,21 @@ app.get("/api/products", async (req, res) => {
     );
   } catch (e: any) {
     handleError(res, e, "GET /api/products");
+  }
+});
+
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    const product = await prisma.product.findUnique({ where: { id: req.params.id } });
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    res.json({
+      ...product,
+      base_price: num(product.base_price),
+      discounted_price: num(product.discounted_price),
+      cost_price: num(product.cost_price),
+    });
+  } catch (e: any) {
+    handleError(res, e, "GET /api/products/:id");
   }
 });
 
@@ -564,14 +602,7 @@ app.patch("/api/orders/:id", async (req, res) => {
         });
       }
     }
-    res.json({
-      ...order,
-      subtotal: num(order.subtotal),
-      tax: num(order.tax),
-      shipping: num(order.shipping),
-      discount: num(order.discount),
-      total: num(order.total),
-    });
+    res.json(order);
   } catch (e: any) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.issues[0]?.message || "Invalid input" });
     if (e.code === "P2025") return res.status(404).json({ error: "Order not found" });
@@ -745,12 +776,10 @@ app.delete("/api/staff/:id", async (req, res) => {
       if (superAdmins <= 1) return res.status(400).json({ error: "Cannot delete the last super admin." });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.audit_logs.deleteMany({ where: { admin_id: target.id } });
-      await tx.adminSession.deleteMany({ where: { adminId: target.id } });
-      await tx.pendingLogin.deleteMany({ where: { adminId: target.id } });
-      await tx.admins.delete({ where: { id: target.id } });
-    });
+    await prisma.audit_logs.deleteMany({ where: { admin_id: target.id } });
+    await prisma.adminSession.deleteMany({ where: { adminId: target.id } });
+    await prisma.pendingLogin.deleteMany({ where: { adminId: target.id } });
+    await prisma.admins.delete({ where: { id: target.id } });
 
     res.json({ success: true });
   } catch (e: any) {

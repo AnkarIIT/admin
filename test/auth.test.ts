@@ -104,7 +104,7 @@ describe("auth", () => {
     expect(cookies[0]).toMatch(/^admin_session=/);
   });
 
-  it("generates a new TOTP secret on each setup call", async () => {
+  it("reuses the pending TOTP secret across setup calls and rotates on force", async () => {
     const testSetupEmail = "consecutive-setup-test@example.com";
     await prisma.admins.upsert({
       where: { email: testSetupEmail },
@@ -123,10 +123,16 @@ describe("auth", () => {
 
     const firstSecret = res1.body.secret;
 
+    // A pending secret is reused so the QR code stays stable until confirmed.
     const res2 = await request(app).post("/api/auth/totp-setup").send({ email: testSetupEmail });
     expect(res2.status).toBe(200);
-    // Each setup call should generate a new secret
     expect(res2.body.secret).toBeDefined();
-    expect(res2.body.secret).not.toBe(firstSecret);
+    expect(res2.body.secret).toBe(firstSecret);
+
+    // A forced setup rotates to a brand new secret.
+    const res3 = await request(app).post("/api/auth/totp-setup").send({ email: testSetupEmail, force: true });
+    expect(res3.status).toBe(200);
+    expect(res3.body.secret).toBeDefined();
+    expect(res3.body.secret).not.toBe(firstSecret);
   });
 });

@@ -103,4 +103,23 @@ describe("product specifications", () => {
       .send({ name: `No Auth ${uniq}`, price: 10 });
     expect(res.status).toBe(401);
   });
+
+  it("fetches a single product by id", async () => {
+    const res = await request(app)
+      .post("/api/products")
+      .set("Cookie", superCookie)
+      .send({ name: `Get One ${uniq}`, price: 799, stock: 3, specifications: { material: "PLA" } });
+    expect(res.status).toBe(201);
+    const id = res.body.id;
+    createdIds.push(id);
+
+    const got = await request(app).get(`/api/products/${id}`).set("Cookie", superCookie);
+    expect(got.status).toBe(200);
+    expect(got.body.id).toBe(id);
+    expect(Number(got.body.base_price)).toBe(799);
+    expect(got.body.specifications.material).toBe("PLA");
+
+    const missing = await request(app).get("/api/products/nonexistent-id").set("Cookie", superCookie);
+    expect(missing.status).toBe(404);
+  });
 });
